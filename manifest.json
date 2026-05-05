@@ -1,14 +1,14 @@
 {
-  "name": "人力VOCALOID用音素検索ツール",
-  "short_name": "音素検索",
+  "name": "QwertY Piano Roll",
+  "short_name": "Piano Roll",
   "icons": [
     {
-      "src": "./icons/icon-192.png",
+      "src": "./img/icon-192.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "./icons/icon-512.png",
+      "src": "./img/icon-512.png",
       "sizes": "512x512",
       "type": "image/png"
     }
