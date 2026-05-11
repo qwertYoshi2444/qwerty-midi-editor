@@ -1,6 +1,6 @@
 import { STATE, getSelectedNotes, deleteSelectedNotes } from './state.js';
 import { xToTick, getPitchAtY, getNoteAt, snapTick } from './utils.js';
-import { renderAll, startLerpAnimation } from './renderer.js'; // 追加: startLerpAnimation
+import { renderAll, startLerpAnimation } from './renderer.js'; 
 import { DrawTool, SelectTool, MuteTool, DeleteTool, editState } from './tools.js';
 import { copyNotes, cutNotes, pasteNotes } from './clipboard.js';
 import { setTool } from './main.js';
@@ -109,7 +109,6 @@ function onMouseMove(e) {
     if (isMiddleDragging) {
         const dx = e.clientX - lastMouseX;
         const dy = e.clientY - lastMouseY;
-        // 変更: 中ボタンドラッグ時は目標値を更新してLerpに任せる
         STATE.targetScrollTick = Math.max(0, STATE.targetScrollTick - dx / STATE.targetZoomX);
         STATE.targetScrollPitch = Math.min(127, Math.max(10, STATE.targetScrollPitch + dy / STATE.targetZoomY));
         lastMouseX = e.clientX; 
@@ -181,7 +180,6 @@ function onWheel(e) {
     e.preventDefault();
     const mouseX = e.offsetX, mouseY = e.offsetY;
     
-    // 変更: ホイール連続入力が不自然にならないよう、現在値ではなく目標値を基準に計算
     const targetTick = (mouseX / STATE.targetZoomX) + STATE.targetScrollTick;
     const targetPitch = STATE.targetScrollPitch - (mouseY / STATE.targetZoomY);
 
@@ -196,7 +194,7 @@ function onWheel(e) {
         if (STATE.targetZoomY > 50) STATE.targetZoomY = 50;
         STATE.targetScrollPitch = Math.min(127, targetPitch + (mouseY / STATE.targetZoomY));
     } else {
-        STATE.targetScrollPitch = Math.min(127, STATE.targetScrollPitch + (e.deltaY > 0 ? -2 : 2));
+        STATE.targetScrollPitch = Math.min(127, Math.max(10, STATE.targetScrollPitch + (e.deltaY > 0 ? -2 : 2)));
     }
     
     startLerpAnimation();
@@ -230,6 +228,7 @@ function onKeyDown(e) {
     if (e.ctrlKey && e.key.toLowerCase() === 'x') { cutNotes(); renderAll(); }
     if (e.ctrlKey && e.key.toLowerCase() === 'v') { pasteNotes(); renderAll(); }
     
+    // トランスポーズショートカット
     if (e.ctrlKey && e.key === 'ArrowUp') { shiftPitch(12); e.preventDefault(); }
     if (e.ctrlKey && e.key === 'ArrowDown') { shiftPitch(-12); e.preventDefault(); }
     if (e.shiftKey && e.key === 'ArrowUp') { shiftPitch(1); e.preventDefault(); }

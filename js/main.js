@@ -1,12 +1,16 @@
 import { STATE, clearSelection, addTrack, TRACK_COLORS_PALETTE, loadParsedMIDI } from './state.js';
 import { initRenderer, renderAll } from './renderer.js';
 import { initEvents } from './events.js';
-import { updateReferenceVolume, loadReferenceAudio, setMasterVolume } from './audio-engine.js';
+import { updateReferenceVolume, loadReferenceAudio, updateMasterVolume } from './audio-engine.js';
 import { exportToMIDI, parseMIDI } from './midi-io.js';
 
 let editingTrackId = null; 
 let editingColorTrackId = null;
 let pendingMidiData = null; 
+
+// アイコンSVG定義 (フェーズ1)
+const ICON_FOLDER = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;margin-right:4px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`;
+const ICON_SETTINGS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
 
 document.addEventListener('DOMContentLoaded', () => {
     const gridCvs = document.getElementById('grid-canvas');
@@ -87,8 +91,11 @@ function setupToolbar() {
         masterVolSlider.addEventListener('input', e => {
             let val = parseInt(e.target.value, 10);
             if (val >= 95 && val <= 105) { val = 100; e.target.value = val; }
-            setMasterVolume(val / 100);
+            STATE.masterVolume = val / 100;
+            updateMasterVolume();
+            masterVolSlider.title = `Master Volume: ${val}%`;
         });
+        masterVolSlider.title = `Master Volume: 100%`;
     }
 
     const tools =['draw', 'select', 'mute', 'delete'];
@@ -144,7 +151,7 @@ function setupRefTrackPanel() {
 
     const fileLabel = document.createElement('label');
     fileLabel.className = 'ref-file-label';
-    fileLabel.innerHTML = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg> Audio';
+    fileLabel.innerHTML = `${ICON_FOLDER} Audio`; // アイコン化
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
     fileInput.accept = 'audio/*';
@@ -298,7 +305,7 @@ function setupTrackPanel() {
 
         const synthBtn = document.createElement('button');
         synthBtn.className = 'tc-btn';
-        synthBtn.innerHTML = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>';
+        synthBtn.innerHTML = ICON_SETTINGS; // アイコン化
         synthBtn.title = 'Synth Settings';
         synthBtn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -416,6 +423,18 @@ function setupSynthModal() {
         }
     });
 
+    document.getElementById('synth-transpose').addEventListener('change', (e) => {
+        if (editingTrackId) {
+            let val = parseInt(e.target.value, 10);
+            if (isNaN(val)) val = 0;
+            if (val < -48) val = -48;
+            if (val > 48) val = 48;
+            e.target.value = val;
+            const track = STATE.tracks.find(t => t.id === editingTrackId);
+            track.transpose = val;
+        }
+    });
+
     let activeKnob = null;
     let startY = 0;
     let startRatio = 0;
@@ -500,6 +519,7 @@ function openSynthModal(trackId) {
     
     document.getElementById('modal-track-name').textContent = `${track.name} Settings`;
     document.getElementById('synth-waveform').value = track.waveform;
+    document.getElementById('synth-transpose').value = track.transpose || 0; // 追加
     
     ['attack', 'decay', 'sustain', 'release'].forEach(param => {
         let val = 0;

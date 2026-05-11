@@ -1,8 +1,5 @@
 import { STATE } from './state.js';
 
-// ==========================================
-// MIDI EXPORT (既存機能の引き継ぎ・移行)
-// ==========================================
 export function exportToMIDI() {
     const hasNotes = STATE.tracks.some(track => track.notes.length > 0);
     if (!hasNotes) {
@@ -55,8 +52,10 @@ export function exportToMIDI() {
         trackData.push(...toVLQ(nameBytes.length), ...nameBytes);
 
         let events =[];
+        const trackTranspose = track.transpose || 0;
         activeNotes.forEach(note => {
-            const exportPitch = Math.max(0, Math.min(127, note.pitch + STATE.globalTranspose));
+            // トラック個別のトランスポーズをMIDI出力時にも適用
+            const exportPitch = Math.max(0, Math.min(127, note.pitch + STATE.globalTranspose + trackTranspose));
             events.push({ type: 'on', tick: note.tick, pitch: exportPitch, velocity: 100 });
             events.push({ type: 'off', tick: note.tick + note.duration, pitch: exportPitch, velocity: 0 });
         });
@@ -117,18 +116,18 @@ export function exportToMIDI() {
     URL.revokeObjectURL(url);
 }
 
-// ==========================================
-// MIDI PARSER (新規: ロード機能のコアロジック)
-// ==========================================
 export function parseMIDI(arrayBuffer) {
     const data = new DataView(arrayBuffer);
     let offset = 0;
 
     const readString = (len) => {
         let str = '';
-        for (let i = 0; i < len; i++) str += String.fromCharCode(data.getUint8(offset++));
+        for (let i = 0; i < len; i++) {
+            str += String.fromCharCode(data.getUint8(offset++));
+        }
         return str;
     };
+    
     const read32 = () => { const v = data.getUint32(offset); offset += 4; return v; };
     const read16 = () => { const v = data.getUint16(offset); offset += 2; return v; };
     const read8 = () => { const v = data.getUint8(offset); offset += 1; return v; };
@@ -142,7 +141,7 @@ export function parseMIDI(arrayBuffer) {
     if (header !== 'MThd') throw new Error("Invalid MIDI file (MThd not found)");
 
     const headerLen = read32();
-    const format = read16();
+    const format = read16(); // eslint-disable-line no-unused-vars
     const trackCount = read16();
     const originalPPQ = read16();
     offset = 14; 
@@ -164,6 +163,7 @@ export function parseMIDI(arrayBuffer) {
 
         let currentTick = 0;
         let runningStatus = 0;
+        let parsedTrackName = ''; // トラック名保持用
         const activeNotes = {}; 
         const trackNotes =[];
 
@@ -180,11 +180,10 @@ export function parseMIDI(arrayBuffer) {
             }
 
             const type = status >> 4;
-            // const channel = status & 0x0f;
 
             if (type === 0x8 || (type === 0x9 && data.getUint8(offset + 1) === 0)) { // Note Off
                 const pitch = read8();
-                read8(); // velocity (discard)
+                read8(); 
                 if (activeNotes[pitch] !== undefined) {
                     const startTick = activeNotes[pitch];
                     trackNotes.push({ pitch, tick: startTick, duration: currentTick - startTick });
@@ -192,12 +191,12 @@ export function parseMIDI(arrayBuffer) {
                 }
             } else if (type === 0x9) { // Note On
                 const pitch = read8();
-                read8(); // velocity
+                read8(); 
                 activeNotes[pitch] = currentTick;
             } else if (type === 0xA || type === 0xB || type === 0xE) { 
-                offset += 2; // Poly Key Pressure, Control Change, Pitch Bend
+                offset += 2; 
             } else if (type === 0xC || type === 0xD) { 
-                offset += 1; // Program Change, Channel Pressure
+                offset += 1; 
             } else if (type === 0xF) { 
                 if (status === 0xFF) { // Meta Event
                     const metaType = read8();
@@ -206,6 +205,8 @@ export function parseMIDI(arrayBuffer) {
                         const t1 = read8(), t2 = read8(), t3 = read8();
                         const microsec = (t1 << 16) | (t2 << 8) | t3;
                         resultBpm = Math.round(60000000 / microsec);
+                    } else if (metaType === 0x03) { // Track Name
+                        parsedTrackName = readString(metaLen);
                     } else {
                         offset += metaLen;
                     }
@@ -216,7 +217,6 @@ export function parseMIDI(arrayBuffer) {
             }
         }
 
-        // PPQ(タイムベース)の変換: 読み込んだTickを当アプリの固定PPQ(96)にリスケールする
         const scale = 96 / originalPPQ;
         const scaledNotes = trackNotes.map(n => ({
             pitch: n.pitch,
@@ -226,8 +226,8 @@ export function parseMIDI(arrayBuffer) {
             selected: false
         }));
 
-        if (scaledNotes.length > 0) {
-            resultTracks.push({ notes: scaledNotes });
+        if (scaledNotes.length > 0 || parsedTrackName !== '') {
+            resultTracks.push({ name: parsedTrackName, notes: scaledNotes });
         }
         
         offset = endOffset; 

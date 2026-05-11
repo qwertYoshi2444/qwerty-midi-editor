@@ -1,7 +1,7 @@
 import { STATE } from './state.js';
 
 let audioCtx = null;
-let masterGain = null; // マスターボリューム用
+let masterGain = null; // 新規: マスターボリューム用ノード
 
 let previewOsc = null;
 let previewGain = null;
@@ -16,17 +16,21 @@ let refGain = null;
 export function initAudio() {
     if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        // マスターゲインの初期化と接続
         masterGain = audioCtx.createGain();
         masterGain.connect(audioCtx.destination);
+        updateMasterVolume();
     }
     if (audioCtx.state === 'suspended') {
         audioCtx.resume();
     }
 }
 
-export function setMasterVolume(vol) {
+export function updateMasterVolume() {
     if (masterGain && audioCtx) {
-        masterGain.gain.setTargetAtTime(vol, audioCtx.currentTime, 0.05);
+        // ノイズを避けるための微小フェード
+        masterGain.gain.setTargetAtTime(STATE.masterVolume, audioCtx.currentTime, 0.01);
     }
 }
 
@@ -65,8 +69,9 @@ export function playReferenceAudio(startTick) {
 
     refGain = audioCtx.createGain();
     
+    // マスターゲインに接続するよう変更
     refSource.connect(refGain);
-    refGain.connect(masterGain); // masterGainへ接続
+    refGain.connect(masterGain);
     
     updateReferenceVolume(); 
 
@@ -115,7 +120,9 @@ export function playPreview(pitch, trackId) {
 
     currentPreviewPitch = pitch;
     
-    const actualPitch = Math.max(0, Math.min(127, pitch + STATE.globalTranspose));
+    // トラック個別のトランスポーズを加味
+    const trackTranspose = track.transpose || 0;
+    const actualPitch = Math.max(0, Math.min(127, pitch + STATE.globalTranspose + trackTranspose));
     const freq = pitchToFreq(actualPitch);
 
     previewOsc = audioCtx.createOscillator();
@@ -133,8 +140,9 @@ export function playPreview(pitch, trackId) {
     const sustainLevel = maxVolume * track.sustain;
     previewGain.gain.setTargetAtTime(sustainLevel, t + track.attack, track.decay);
 
+    // マスターゲインへ接続
     previewOsc.connect(previewGain);
-    previewGain.connect(masterGain); // masterGainへ接続
+    previewGain.connect(masterGain);
     previewOsc.start();
 }
 
@@ -209,7 +217,10 @@ function scheduleSingleNote(note, track, startTime, durationTime) {
     const gain = audioCtx.createGain();
     
     osc.type = track.waveform;
-    const actualPitch = Math.max(0, Math.min(127, note.pitch + STATE.globalTranspose));
+    
+    // トラック個別のトランスポーズを加味
+    const trackTranspose = track.transpose || 0;
+    const actualPitch = Math.max(0, Math.min(127, note.pitch + STATE.globalTranspose + trackTranspose));
     osc.frequency.value = pitchToFreq(actualPitch);
     
     const trackVol = track.volume !== undefined ? track.volume : 1.0;
@@ -225,7 +236,7 @@ function scheduleSingleNote(note, track, startTime, durationTime) {
     gain.gain.exponentialRampToValueAtTime(0.0001, releaseStartTime + track.release);
     
     osc.connect(gain);
-    gain.connect(masterGain); // masterGainへ接続
+    gain.connect(masterGain); // マスターゲインへ接続
     
     osc.start(startTime);
     osc.stop(releaseStartTime + track.release);

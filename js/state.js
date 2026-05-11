@@ -13,8 +13,7 @@ function hslToHex(h, s, l) {
 
 export const TRACK_COLORS_PALETTE =[];
 for (let i = 0; i < 32; i++) {
-    // 変更: +215度シフトすることで、インデックス0が青色系（#4585f5に近い色）になるよう調整
-    const h = Math.floor((i * (360 / 32) + 215) % 360);
+    const h = Math.floor((i * (360 / 32)) % 360);
     const s = i % 2 === 0 ? 60 : 45;
     const l = i % 2 === 0 ? 55 : 45;
     TRACK_COLORS_PALETTE.push({
@@ -32,6 +31,7 @@ for (let i = 0; i < 8; i++) {
         borderColor: TRACK_COLORS_PALETTE[i].border,
         notes:[],
         volume: 1.0,
+        transpose: 0, // 新規: 個別トランスポーズ
         waveform: 'sawtooth',
         attack: 0.0001,
         decay: 0.1,
@@ -43,6 +43,8 @@ for (let i = 0; i < 8; i++) {
 export const STATE = {
     bpm: 120,
     ppq: 96,
+    
+    masterVolume: 1.0, // 新規: 全体ボリューム
     
     zoomX: 0.5,
     zoomY: 20,
@@ -141,6 +143,7 @@ export function addTrack() {
         borderColor: newColorObj.border,
         notes:[],
         volume: 1.0,
+        transpose: 0,
         waveform: 'sawtooth',
         attack: 0.0001,
         decay: 0.1,
@@ -177,11 +180,12 @@ export function loadParsedMIDI(parsedData, appendMode, overrideBpm) {
 
         STATE.tracks.push({
             id: nextId,
-            name: `MIDI Track ${appendMode ? nextId : (index + 1)}`,
+            name: parsedTrack.name || `MIDI Track ${appendMode ? nextId : (index + 1)}`, // 修正: パースした名前の反映
             color: newColorObj.fill,
             borderColor: newColorObj.border,
             notes: newNotes,
             volume: 1.0,
+            transpose: 0,
             waveform: 'sawtooth',
             attack: 0.0001,
             decay: 0.1,
