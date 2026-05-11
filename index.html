@@ -34,7 +34,9 @@
         #toolbar { 
             height: 40px; background-color: #3b4043; border-bottom: 1px solid #1a1c1d; 
             display: flex; align-items: center; padding: 0 10px; font-size: 14px; gap: 15px; flex-shrink: 0;
+            overflow-x: auto; /* 画面が狭い時にスクロールできるよう */
         }
+        #toolbar::-webkit-scrollbar { display: none; }
         
         .tool-btn-group { display: flex; gap: 2px; background-color: #1e2122; padding: 2px; border-radius: 4px; border: 1px solid #1a1c1d; align-items: center; }
         
@@ -46,13 +48,16 @@
         .tool-btn svg { width: 14px; height: 14px; fill: currentColor; stroke: currentColor; stroke-width: 0; }
         
         .tool-btn:hover { background-color: #4b5155; }
-        .tool-btn.active { background-color: #4585f5; color: #fff; border-color: #2b65d1; font-weight: bold; }
+        .tool-btn.active { background-color: #ff6600; color: #fff; border-color: #cc5200; font-weight: bold; }
         
         #btn-play.playing { background-color: #33cc33; border-color: #009900; color: #fff; }
 
         select, input[type="number"] { background-color: #1e2122; color: #d0d0d0; border: 1px solid #555; padding: 3px; border-radius: 3px; outline: none; }
         input[type="number"] { width: 50px; text-align: center; }
         
+        .toolbar-label { display: flex; align-items: center; gap: 4px; font-size: 12px; white-space: nowrap; }
+        .toolbar-label svg { width: 14px; height: 14px; stroke: #aaa; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
         .spacer { flex-grow: 1; }
         
         .dropdown { position: relative; display: inline-block; }
@@ -88,7 +93,7 @@
         .ref-track-item { display: flex; flex-direction: column; padding: 8px; background-color: #242729; gap: 6px; }
         .ref-file-label {
             font-size: 10px; background: #3b4043; padding: 4px 6px; border-radius: 3px; cursor: pointer; border: 1px solid #555;
-            display: flex; align-items: center; justify-content: center; gap: 4px;
+            display: flex; align-items: center; justify-content: center;
         }
         .ref-file-label:hover { background: #4b5155; color: #fff; border-color: #888; }
         .ref-file-name { font-size: 11px; color: #aaa; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-grow: 1; padding-left: 8px; }
@@ -121,7 +126,7 @@
         
         .track-vol-container { display: flex; align-items: center; gap: 5px; padding: 0 4px; }
         .track-vol-container label { font-size: 10px; color: #888; }
-        .track-vol { flex-grow: 1; accent-color: #4585f5; cursor: pointer; height: 4px; }
+        .track-vol { flex-grow: 1; accent-color: #ff6600; cursor: pointer; height: 4px; }
         
         #btn-add-track {
             margin: 10px; padding: 6px; background-color: #3b4043; border: 1px dashed #555;
@@ -139,6 +144,7 @@
         #keyboard-canvas { width: 80px; background-color: #1e2122; border-right: 1px solid #1a1c1d; flex-shrink: 0; touch-action: none; cursor: pointer; }
         #grid-canvas { flex: 1; background-color: #1e2122; outline: none; touch-action: none; }
         
+        /* モーダル群 */
         .modal-overlay {
             display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background-color: #2c3032; border: 1px solid #555; border-radius: 8px; padding: 20px;
@@ -146,13 +152,13 @@
         }
         .modal-overlay.show { display: block; }
         
-        #synth-modal { width: 340px; } 
+        #synth-modal { width: 340px; }
         #color-picker-modal { width: 240px; padding: 15px; }
         #midi-load-modal { width: 280px; }
         
-        .modal-title { font-size: 16px; font-weight: bold; margin-bottom: 15px; color: #4585f5; border-bottom: 1px solid #555; padding-bottom: 5px; }
+        .modal-title { font-size: 16px; font-weight: bold; margin-bottom: 15px; color: #ff6600; border-bottom: 1px solid #555; padding-bottom: 5px; }
         .modal-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 13px; }
-        .modal-row select { width: 150px; }
+        .modal-row select, .modal-row input { width: 130px; }
         
         .synth-knobs {
             display: flex; justify-content: space-between; margin-top: 20px;
@@ -165,28 +171,26 @@
         }
         .knob svg {
             width: 100%; height: 100%; transform: rotate(135deg);
-            pointer-events: none; 
+            pointer-events: none;
         }
         .knob-bg, .knob-val {
             fill: none; stroke-width: 4; stroke-linecap: round;
-            stroke-dasharray: 70.686 100; 
+            stroke-dasharray: 70.686 100;
         }
         .knob-bg { stroke: #1e2122; stroke-dashoffset: 0; }
-        .knob-val { stroke: #4585f5; stroke-dashoffset: 70.686; transition: stroke-dashoffset 0.05s linear; }
+        .knob-val { stroke: #ff6600; stroke-dashoffset: 70.686; transition: stroke-dashoffset 0.05s linear; }
         .knob-label { font-size: 11px; color: #aaa; margin-top: 8px; font-weight: bold; }
         .knob-value-disp { font-size: 10px; color: #fff; margin-top: 2px; font-variant-numeric: tabular-nums; }
         
         .modal-btn-group { display: flex; gap: 10px; margin-top: 20px; }
         .modal-btn { flex: 1; padding: 8px; background-color: #3b4043; border: 1px solid #555; color: #fff; cursor: pointer; border-radius: 4px; }
-        .modal-btn.primary { background-color: #4585f5; border-color: #2b65d1; font-weight: bold; }
+        .modal-btn.primary { background-color: #ff6600; border-color: #cc5200; font-weight: bold; }
         .modal-btn:hover { background-color: #4b5155; }
-        .modal-btn.primary:hover { background-color: #5c95f6; }
+        .modal-btn.primary:hover { background-color: #ff8533; }
         
         .color-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; margin-bottom: 10px; }
         .color-cell { width: 20px; height: 20px; border-radius: 50%; cursor: pointer; border: 1px solid #111; }
         .color-cell:hover { transform: scale(1.2); box-shadow: 0 0 5px rgba(255,255,255,0.8); }
-
-        .toolbar-icon { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; vertical-align: -2px; }
     </style>
 </head>
 <body>
@@ -199,7 +203,7 @@
         
         <div class="tool-btn-group">
             <button class="tool-btn" id="btn-play" title="Play/Stop (Space)">
-                <svg viewBox="0 0 24 24" fill="currentColor" id="icon-play" stroke-width="0"><path d="M8 5v14l11-7z"/></svg> <span id="label-play">Play</span>
+                <svg viewBox="0 0 24 24" fill="currentColor" id="icon-play"><path d="M8 5v14l11-7z"/></svg> <span id="label-play">Play</span>
             </button>
         </div>
         
@@ -218,35 +222,45 @@
             </button>
         </div>
         
-        <div style="display: flex; align-items: center; gap: 4px;">
-            <svg class="toolbar-icon" viewBox="0 0 24 24"><path d="M4 11V7a8 8 0 0 1 16 0v4"/><path d="M4 11h4v4H4z"/><path d="M16 11h4v4h-4z"/></svg>
-            <label for="snap-select">Snap:</label>
-            <select id="snap-select">
-                <option value="384">Bar</option>
-                <option value="96">Beat</option>
-                <option value="48">1/2 Beat</option>
-                <option value="24" selected>Step</option>
-                <option value="12">1/2 Step</option>
-                <option value="6">1/4 Step</option>
-                <option value="4">1/6 Step</option>
-                <option value="0">None</option>
-            </select>
-        </div>
-        
-        <div style="display: flex; align-items: center; gap: 4px;">
-            <svg class="toolbar-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            <label for="bpm-input">BPM:</label>
-            <input type="number" id="bpm-input" value="120" min="20" max="300">
-        </div>
-        
-        <div class="tool-btn-group" style="padding: 0 5px;">
-            <label for="transpose-input" style="font-size: 12px; margin-right: 2px;">Trans:</label>
-            <input type="number" id="transpose-input" value="0" min="-24" max="24" style="width: 35px;">
-        </div>
+        <!-- アイコン化: Snap, BPM, Transpose, MasterVol -->
+        <div style="display:flex; align-items:center; gap:10px;">
+            <div style="display:flex; align-items:center; gap:4px;">
+                <label for="snap-select" class="toolbar-label" title="Snap">
+                    <svg viewBox="0 0 24 24"><path d="M4 11V7a8 8 0 0116 0v4M4 11v4a4 4 0 01-8 0v-4M20 11v4a4 4 0 00-8 0v-4"></path></svg>
+                </label>
+                <select id="snap-select">
+                    <option value="384">Bar</option>
+                    <option value="96">Beat</option>
+                    <option value="48">1/2 Beat</option>
+                    <option value="24" selected>Step</option>
+                    <option value="12">1/2 Step</option>
+                    <option value="6">1/4 Step</option>
+                    <option value="4">1/6 Step</option>
+                    <option value="0">None</option>
+                </select>
+            </div>
+            
+            <div style="display:flex; align-items:center; gap:4px;">
+                <label for="bpm-input" class="toolbar-label" title="BPM">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                </label>
+                <input type="number" id="bpm-input" value="120" min="20" max="300">
+            </div>
 
-        <div class="tool-btn-group" style="padding: 0 5px; gap: 4px;" title="Master Volume (Preview/Playback only)">
-            <svg class="toolbar-icon" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
-            <input type="range" id="master-vol-slider" min="0" max="150" value="100" style="width: 50px; accent-color: #4585f5;">
+            <div class="tool-btn-group" style="padding: 0 5px; gap:4px;">
+                <label for="transpose-input" class="toolbar-label" title="Global Transpose">
+                    <svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+                </label>
+                <input type="number" id="transpose-input" value="0" min="-24" max="24" style="width: 35px;">
+            </div>
+
+            <!-- 新規: Master Volume -->
+            <div class="tool-btn-group" style="padding: 0 5px; gap:4px;">
+                <label for="master-vol-slider" class="toolbar-label" title="Master Volume">
+                    <svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                </label>
+                <input type="range" id="master-vol-slider" min="0" max="150" value="100" style="width: 60px; accent-color: #ff6600;">
+            </div>
         </div>
         
         <div class="spacer"></div>
@@ -285,6 +299,13 @@
 
 <div class="modal-overlay" id="synth-modal">
     <div class="modal-title" id="modal-track-name">Track Settings</div>
+    
+    <!-- 個別トランスポーズ入力欄の追加 -->
+    <div class="modal-row">
+        <label>Transpose</label>
+        <input type="number" id="synth-transpose" value="0" min="-48" max="48">
+    </div>
+
     <div class="modal-row" style="margin-bottom: 20px;">
         <label>Waveform</label>
         <select id="synth-waveform">
