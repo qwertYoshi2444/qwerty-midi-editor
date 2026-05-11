@@ -68,7 +68,6 @@
         }
         .dropdown-content { right: 0; top: 100%; }
         
-        /* トラックメニュー等の共通スタイル */
         .dropdown-content a, .context-menu a {
             color: #d0d0d0; padding: 10px 14px; text-decoration: none; display: block; font-size: 12px;
             border-bottom: 1px solid #1a1c1d; cursor: pointer;
@@ -77,7 +76,6 @@
         .dropdown-content a:hover, .context-menu a:hover { background-color: #4b5155; color: #fff; }
         .dropdown:hover .dropdown-content { display: block; }
         
-        /* JS制御用の表示クラス */
         .context-menu.show { display: block; }
         .context-menu a.danger { color: #ff6666; }
         .context-menu a.danger:hover { background-color: #ff3333; color: #fff; }
@@ -88,6 +86,7 @@
             width: 200px; background-color: #2c3032; border-right: 1px solid #1a1c1d;
             display: flex; flex-direction: column; transition: width 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
             overflow: hidden; flex-shrink: 0;
+            position: relative; /* 並び替えの基準用 */
         }
         #track-panel-container.closed { width: 0px; border-right: none; }
         
@@ -105,7 +104,7 @@
         .ref-file-label:hover { background: #4b5155; color: #fff; border-color: #888; }
         .ref-file-name { font-size: 11px; color: #aaa; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-grow: 1; padding-left: 8px; }
         
-        #track-list { flex: 1; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; width: 200px; }
+        #track-list { flex: 1; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; width: 200px; position: relative; }
         #track-list::-webkit-scrollbar { width: 6px; }
         #track-list::-webkit-scrollbar-track { background: #1e2122; }
         #track-list::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
@@ -116,6 +115,15 @@
         }
         .track-item:hover { background-color: #3b4043; }
         .track-item.active { background-color: #4b5155; }
+        
+        /* 新規: ドラッグ中のトラックのスタイル */
+        .track-item.dragging {
+            opacity: 0.95;
+            background-color: #5b6266 !important;
+            border: 1px solid #ff6600;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.8);
+            z-index: 3000;
+        }
         
         .track-item-top { display: flex; align-items: center; width: 100%; }
         
@@ -135,6 +143,15 @@
         .track-vol-container { display: flex; align-items: center; gap: 5px; padding: 0 4px; }
         .track-vol-container label { font-size: 10px; color: #888; }
         .track-vol { flex-grow: 1; accent-color: #ff6600; cursor: pointer; height: 4px; }
+        
+        /* 新規: ドラッグハンドルのスタイル */
+        .track-drag-handle {
+            cursor: grab;
+            display: flex; align-items: center; justify-content: center;
+            color: #666; touch-action: none; padding-right: 4px;
+        }
+        .track-drag-handle:hover { color: #aaa; }
+        .track-drag-handle:active { cursor: grabbing; color: #fff; }
         
         #btn-add-track {
             margin: 10px; padding: 6px; background-color: #3b4043; border: 1px dashed #555;
@@ -307,7 +324,6 @@
     </div>
 </div>
 
-<!-- トラックコンテキストメニュー -->
 <div id="track-context-menu" class="context-menu">
     <a href="#" id="ctx-menu-duplicate">Duplicate</a>
     <a href="#" id="ctx-menu-delete" class="danger">Delete</a>
@@ -328,7 +344,6 @@
             <option value="square">Square</option>
             <option value="triangle">Triangle</option>
             <option value="sine">Sine</option>
-            <!-- パルス波の追加 -->
             <option value="pulse25">Pulse 25%</option>
             <option value="pulse12">Pulse 12.5%</option>
         </select>
