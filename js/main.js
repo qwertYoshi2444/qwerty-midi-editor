@@ -9,9 +9,12 @@ let editingColorTrackId = null;
 let pendingMidiData = null; 
 
 const ICON_FOLDER = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;margin-right:4px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`;
-const ICON_SETTINGS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
-// 新規: メニュー用アイコン
-const ICON_MENU = `<svg viewBox="0 0 24 24" fill="currentColor" style="width:12px;height:12px;"><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg>`;
+
+// サイズ修正: 12px -> 14px
+const ICON_SETTINGS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
+const ICON_MENU = `<svg viewBox="0 0 24 24" fill="currentColor" style="width:14px;height:14px;"><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg>`;
+// ドラッグ用ハンドルアイコン
+const ICON_DRAG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><line x1="4" y1="9" x2="20" y2="9"></line><line x1="4" y1="15" x2="20" y2="15"></line></svg>`;
 
 document.addEventListener('DOMContentLoaded', () => {
     const gridCvs = document.getElementById('grid-canvas');
@@ -24,7 +27,6 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('resize', resizeCanvas);
     document.getElementById('track-panel-container').addEventListener('transitionend', resizeCanvas);
     
-    // 画面外クリックでトラックコンテキストメニューを閉じる
     document.addEventListener('click', (e) => {
         const menu = document.getElementById('track-context-menu');
         if (menu.classList.contains('show') && !e.target.closest('.tc-btn.menu-btn')) {
@@ -249,6 +251,15 @@ function setupRefTrackPanel() {
     container.appendChild(refDiv);
 }
 
+// ----------------------------------------------------
+// ドラッグ＆ドロップ並べ替え用グローバル変数
+let draggedTrackItem = null;
+let dragGhost = null;
+let dragStartY = 0;
+let dragScrollInterval = null;
+let longPressTimeout = null;
+// ----------------------------------------------------
+
 function setupTrackPanel() {
     const trackList = document.getElementById('track-list');
     trackList.innerHTML = ''; 
@@ -321,7 +332,6 @@ function setupTrackPanel() {
             openSynthModal(track.id);
         });
 
-        // 新規: メニュー(⋮)ボタン
         const menuBtn = document.createElement('button');
         menuBtn.className = 'tc-btn menu-btn';
         menuBtn.innerHTML = ICON_MENU;
@@ -334,7 +344,7 @@ function setupTrackPanel() {
         controlsDiv.appendChild(muteBtn);
         controlsDiv.appendChild(soloBtn);
         controlsDiv.appendChild(synthBtn);
-        controlsDiv.appendChild(menuBtn); // 追加
+        controlsDiv.appendChild(menuBtn);
 
         const topRow = document.createElement('div');
         topRow.className = 'track-item-top';
@@ -344,6 +354,62 @@ function setupTrackPanel() {
 
         const volContainer = document.createElement('div');
         volContainer.className = 'track-vol-container';
+        
+        // 新規: ドラッグハンドルを追加
+        const dragHandle = document.createElement('div');
+        dragHandle.className = 'track-drag-handle';
+        dragHandle.innerHTML = ICON_DRAG;
+        dragHandle.title = "Drag to reorder (Long press on mobile)";
+        
+        // --- ドラッグ＆ドロップ用イベントリスナー ---
+        const startDrag = (e, clientY) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (draggedTrackItem) return;
+
+            draggedTrackItem = itemDiv;
+            dragStartY = clientY;
+            
+            // ゴースト要素を作成してカーソルに追従させる
+            dragGhost = itemDiv.cloneNode(true);
+            dragGhost.classList.add('dragging');
+            dragGhost.style.position = 'absolute';
+            dragGhost.style.width = `${itemDiv.offsetWidth}px`;
+            
+            const listRect = trackList.getBoundingClientRect();
+            const itemRect = itemDiv.getBoundingClientRect();
+            dragGhost.style.top = `${itemRect.top - listRect.top + trackList.scrollTop}px`;
+            dragGhost.style.left = `0px`;
+            
+            trackList.appendChild(dragGhost);
+            itemDiv.style.opacity = '0.3';
+            document.body.style.cursor = 'grabbing';
+            
+            startDragScrollLoop();
+        };
+
+        // PCマウス操作
+        dragHandle.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return;
+            startDrag(e, e.clientY);
+        });
+
+        // モバイルタッチ操作 (長押し判定)
+        dragHandle.addEventListener('touchstart', (e) => {
+            const touchY = e.touches[0].clientY;
+            longPressTimeout = setTimeout(() => {
+                startDrag(e, touchY);
+            }, 400); // 400ms長押しでドラッグ開始
+        }, { passive: false });
+
+        dragHandle.addEventListener('touchend', () => {
+            if (longPressTimeout) clearTimeout(longPressTimeout);
+        });
+        dragHandle.addEventListener('touchmove', () => {
+            if (longPressTimeout) clearTimeout(longPressTimeout); // スワイプした場合はキャンセル
+        }, { passive: true });
+        // ------------------------------------------
+
         const volLabel = document.createElement('label');
         volLabel.textContent = 'Vol';
         const volSlider = document.createElement('input');
@@ -366,6 +432,7 @@ function setupTrackPanel() {
         volSlider.addEventListener('mousedown', e => e.stopPropagation());
         volSlider.addEventListener('touchstart', e => e.stopPropagation(), {passive: true});
 
+        volContainer.appendChild(dragHandle); // 配置
         volContainer.appendChild(volLabel);
         volContainer.appendChild(volSlider);
 
@@ -395,7 +462,120 @@ function setupTrackPanel() {
     trackList.appendChild(addBtn);
 }
 
-// 新規: コンテキストメニューの表示
+// --- 並び替えドラッグ中のグローバルイベント処理 ---
+function handleDragMove(clientY) {
+    if (!dragGhost || !draggedTrackItem) return;
+
+    const trackList = document.getElementById('track-list');
+    const listRect = trackList.getBoundingClientRect();
+    
+    // ゴーストのY座標更新（スクロール位置も加味）
+    let newTop = clientY - listRect.top + trackList.scrollTop - (dragGhost.offsetHeight / 2);
+    dragGhost.style.top = `${newTop}px`;
+
+    // どのアイテムと入れ替えるか判定
+    const items = Array.from(trackList.querySelectorAll('.track-item:not(.dragging)'));
+    const mouseY = clientY - listRect.top + trackList.scrollTop;
+
+    let targetItem = null;
+    for (let item of items) {
+        const itemTop = item.offsetTop;
+        const itemBottom = itemTop + item.offsetHeight;
+        if (mouseY > itemTop && mouseY < itemBottom) {
+            targetItem = item;
+            break;
+        }
+    }
+
+    if (targetItem && targetItem !== draggedTrackItem) {
+        const itemTop = targetItem.offsetTop;
+        const itemHeight = targetItem.offsetHeight;
+        
+        // ターゲットの上半分か下半分かで挿入位置を決定
+        if (mouseY < itemTop + itemHeight / 2) {
+            trackList.insertBefore(draggedTrackItem, targetItem);
+        } else {
+            trackList.insertBefore(draggedTrackItem, targetItem.nextSibling);
+        }
+    }
+}
+
+function stopDrag() {
+    if (!draggedTrackItem) return;
+
+    const trackList = document.getElementById('track-list');
+    
+    // アニメーションループの停止
+    if (dragScrollInterval) {
+        cancelAnimationFrame(dragScrollInterval);
+        dragScrollInterval = null;
+    }
+
+    // STATE.tracksの配列をDOMの順序に合わせて更新する
+    const newTracksArray = [];
+    const items = trackList.querySelectorAll('.track-item:not(.dragging)');
+    items.forEach(item => {
+        const id = parseInt(item.dataset.trackId, 10);
+        const trackObj = STATE.tracks.find(t => t.id === id);
+        if (trackObj) newTracksArray.push(trackObj);
+    });
+    STATE.tracks = newTracksArray;
+
+    // クリーンアップ
+    if (dragGhost) {
+        dragGhost.remove();
+        dragGhost = null;
+    }
+    draggedTrackItem.style.opacity = '1';
+    draggedTrackItem = null;
+    document.body.style.cursor = 'default';
+
+    // 再描画して状態を確定
+    setupTrackPanel();
+}
+
+window.addEventListener('mousemove', e => {
+    if (draggedTrackItem) handleDragMove(e.clientY);
+});
+window.addEventListener('touchmove', e => {
+    if (draggedTrackItem) {
+        handleDragMove(e.touches[0].clientY);
+        e.preventDefault(); // スクロール防止
+    }
+}, { passive: false });
+
+window.addEventListener('mouseup', stopDrag);
+window.addEventListener('touchend', stopDrag);
+
+// --- ドラッグ中の自動スクロールループ ---
+let dragCurrentMouseY = 0;
+window.addEventListener('mousemove', e => dragCurrentMouseY = e.clientY);
+window.addEventListener('touchmove', e => { if(draggedTrackItem) dragCurrentMouseY = e.touches[0].clientY; }, {passive:true});
+
+function startDragScrollLoop() {
+    const trackList = document.getElementById('track-list');
+    
+    function loop() {
+        if (!draggedTrackItem) return;
+        
+        const rect = trackList.getBoundingClientRect();
+        const threshold = 30; // 画面端から30px以内でスクロール開始
+        const scrollSpeed = 5;
+
+        if (dragCurrentMouseY < rect.top + threshold) {
+            trackList.scrollTop -= scrollSpeed;
+            handleDragMove(dragCurrentMouseY); // スクロールした分も再計算
+        } else if (dragCurrentMouseY > rect.bottom - threshold) {
+            trackList.scrollTop += scrollSpeed;
+            handleDragMove(dragCurrentMouseY);
+        }
+        
+        dragScrollInterval = requestAnimationFrame(loop);
+    }
+    dragScrollInterval = requestAnimationFrame(loop);
+}
+// ----------------------------------------------------
+
 function showTrackMenu(e, trackId) {
     const menu = document.getElementById('track-context-menu');
     const rect = e.target.getBoundingClientRect();
