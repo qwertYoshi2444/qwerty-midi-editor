@@ -1,4 +1,4 @@
-import { STATE, clearSelection, addTrack, TRACK_COLORS_PALETTE, loadParsedMIDI } from './state.js';
+import { STATE, clearSelection, addTrack, duplicateTrack, deleteTrack, TRACK_COLORS_PALETTE, loadParsedMIDI } from './state.js';
 import { initRenderer, renderAll } from './renderer.js';
 import { initEvents } from './events.js';
 import { updateReferenceVolume, loadReferenceAudio, updateMasterVolume } from './audio-engine.js';
@@ -8,9 +8,10 @@ let editingTrackId = null;
 let editingColorTrackId = null;
 let pendingMidiData = null; 
 
-// アイコンSVG定義 (フェーズ1)
 const ICON_FOLDER = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;margin-right:4px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`;
 const ICON_SETTINGS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
+// 新規: メニュー用アイコン
+const ICON_MENU = `<svg viewBox="0 0 24 24" fill="currentColor" style="width:12px;height:12px;"><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg>`;
 
 document.addEventListener('DOMContentLoaded', () => {
     const gridCvs = document.getElementById('grid-canvas');
@@ -23,6 +24,14 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('resize', resizeCanvas);
     document.getElementById('track-panel-container').addEventListener('transitionend', resizeCanvas);
     
+    // 画面外クリックでトラックコンテキストメニューを閉じる
+    document.addEventListener('click', (e) => {
+        const menu = document.getElementById('track-context-menu');
+        if (menu.classList.contains('show') && !e.target.closest('.tc-btn.menu-btn')) {
+            menu.classList.remove('show');
+        }
+    });
+
     resizeCanvas();
     setupToolbar();
     setupRefTrackPanel(); 
@@ -151,7 +160,7 @@ function setupRefTrackPanel() {
 
     const fileLabel = document.createElement('label');
     fileLabel.className = 'ref-file-label';
-    fileLabel.innerHTML = `${ICON_FOLDER} Audio`; // アイコン化
+    fileLabel.innerHTML = `${ICON_FOLDER} Audio`; 
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
     fileInput.accept = 'audio/*';
@@ -305,16 +314,27 @@ function setupTrackPanel() {
 
         const synthBtn = document.createElement('button');
         synthBtn.className = 'tc-btn';
-        synthBtn.innerHTML = ICON_SETTINGS; // アイコン化
+        synthBtn.innerHTML = ICON_SETTINGS;
         synthBtn.title = 'Synth Settings';
         synthBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             openSynthModal(track.id);
         });
 
+        // 新規: メニュー(⋮)ボタン
+        const menuBtn = document.createElement('button');
+        menuBtn.className = 'tc-btn menu-btn';
+        menuBtn.innerHTML = ICON_MENU;
+        menuBtn.title = 'Menu';
+        menuBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showTrackMenu(e, track.id);
+        });
+
         controlsDiv.appendChild(muteBtn);
         controlsDiv.appendChild(soloBtn);
         controlsDiv.appendChild(synthBtn);
+        controlsDiv.appendChild(menuBtn); // 追加
 
         const topRow = document.createElement('div');
         topRow.className = 'track-item-top';
@@ -373,6 +393,32 @@ function setupTrackPanel() {
         setupTrackPanel();
     });
     trackList.appendChild(addBtn);
+}
+
+// 新規: コンテキストメニューの表示
+function showTrackMenu(e, trackId) {
+    const menu = document.getElementById('track-context-menu');
+    const rect = e.target.getBoundingClientRect();
+    
+    menu.style.top = `${rect.bottom}px`;
+    menu.style.left = `${rect.left - 120}px`; 
+    menu.classList.add('show');
+
+    document.getElementById('ctx-menu-duplicate').onclick = (ev) => {
+        ev.preventDefault();
+        duplicateTrack(trackId);
+        setupTrackPanel();
+        renderAll();
+        menu.classList.remove('show');
+    };
+
+    document.getElementById('ctx-menu-delete').onclick = (ev) => {
+        ev.preventDefault();
+        deleteTrack(trackId);
+        setupTrackPanel();
+        renderAll();
+        menu.classList.remove('show');
+    };
 }
 
 const KNOB_CONFIG = {
@@ -519,7 +565,7 @@ function openSynthModal(trackId) {
     
     document.getElementById('modal-track-name').textContent = `${track.name} Settings`;
     document.getElementById('synth-waveform').value = track.waveform;
-    document.getElementById('synth-transpose').value = track.transpose || 0; // 追加
+    document.getElementById('synth-transpose').value = track.transpose || 0; 
     
     ['attack', 'decay', 'sustain', 'release'].forEach(param => {
         let val = 0;

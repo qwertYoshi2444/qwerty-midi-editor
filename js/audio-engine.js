@@ -1,7 +1,7 @@
 import { STATE } from './state.js';
 
 let audioCtx = null;
-let masterGain = null; // 新規: マスターボリューム用ノード
+let masterGain = null; 
 
 let previewOsc = null;
 let previewGain = null;
@@ -13,23 +13,44 @@ let activeNodes =[];
 let refSource = null;
 let refGain = null;
 
+// 新規: パルス波のPeriodicWaveをキャッシュ
+let pulse25Wave = null;
+let pulse12Wave = null;
+
 export function initAudio() {
     if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         
-        // マスターゲインの初期化と接続
         masterGain = audioCtx.createGain();
         masterGain.connect(audioCtx.destination);
         updateMasterVolume();
+
+        // パルス波のテーブル生成 (フーリエ級数展開を用いた近似)
+        pulse25Wave = createPulseWave(0.25);
+        pulse12Wave = createPulseWave(0.125);
     }
     if (audioCtx.state === 'suspended') {
         audioCtx.resume();
     }
 }
 
+// 新規: 指定したデューティ比(duty)のPeriodicWaveを生成
+function createPulseWave(duty) {
+    const terms = 30; // 倍音の数（あまり多いと高音域でエイリアシングノイズが発生するため適度に抑える）
+    const real = new Float32Array(terms + 1);
+    const imag = new Float32Array(terms + 1);
+    
+    real[0] = duty;
+    for (let i = 1; i <= terms; i++) {
+        // an = 2 / (n * PI) * sin(n * PI * duty)
+        real[i] = (2 / (i * Math.PI)) * Math.sin(i * Math.PI * duty);
+        imag[i] = 0; // 位相シフトなし
+    }
+    return audioCtx.createPeriodicWave(real, imag, { disableNormalization: false });
+}
+
 export function updateMasterVolume() {
     if (masterGain && audioCtx) {
-        // ノイズを避けるための微小フェード
         masterGain.gain.setTargetAtTime(STATE.masterVolume, audioCtx.currentTime, 0.01);
     }
 }
@@ -69,7 +90,6 @@ export function playReferenceAudio(startTick) {
 
     refGain = audioCtx.createGain();
     
-    // マスターゲインに接続するよう変更
     refSource.connect(refGain);
     refGain.connect(masterGain);
     
@@ -120,7 +140,6 @@ export function playPreview(pitch, trackId) {
 
     currentPreviewPitch = pitch;
     
-    // トラック個別のトランスポーズを加味
     const trackTranspose = track.transpose || 0;
     const actualPitch = Math.max(0, Math.min(127, pitch + STATE.globalTranspose + trackTranspose));
     const freq = pitchToFreq(actualPitch);
@@ -128,7 +147,15 @@ export function playPreview(pitch, trackId) {
     previewOsc = audioCtx.createOscillator();
     previewGain = audioCtx.createGain();
 
-    previewOsc.type = track.waveform;
+    // 変更: カスタム波形の適用
+    if (track.waveform === 'pulse25' && pulse25Wave) {
+        previewOsc.setPeriodicWave(pulse25Wave);
+    } else if (track.waveform === 'pulse12' && pulse12Wave) {
+        previewOsc.setPeriodicWave(pulse12Wave);
+    } else {
+        previewOsc.type = track.waveform;
+    }
+
     previewOsc.frequency.value = freq;
 
     const t = audioCtx.currentTime;
@@ -140,7 +167,6 @@ export function playPreview(pitch, trackId) {
     const sustainLevel = maxVolume * track.sustain;
     previewGain.gain.setTargetAtTime(sustainLevel, t + track.attack, track.decay);
 
-    // マスターゲインへ接続
     previewOsc.connect(previewGain);
     previewGain.connect(masterGain);
     previewOsc.start();
@@ -216,9 +242,15 @@ function scheduleSingleNote(note, track, startTime, durationTime) {
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     
-    osc.type = track.waveform;
+    // 変更: カスタム波形の適用
+    if (track.waveform === 'pulse25' && pulse25Wave) {
+        osc.setPeriodicWave(pulse25Wave);
+    } else if (track.waveform === 'pulse12' && pulse12Wave) {
+        osc.setPeriodicWave(pulse12Wave);
+    } else {
+        osc.type = track.waveform;
+    }
     
-    // トラック個別のトランスポーズを加味
     const trackTranspose = track.transpose || 0;
     const actualPitch = Math.max(0, Math.min(127, note.pitch + STATE.globalTranspose + trackTranspose));
     osc.frequency.value = pitchToFreq(actualPitch);
@@ -236,7 +268,7 @@ function scheduleSingleNote(note, track, startTime, durationTime) {
     gain.gain.exponentialRampToValueAtTime(0.0001, releaseStartTime + track.release);
     
     osc.connect(gain);
-    gain.connect(masterGain); // マスターゲインへ接続
+    gain.connect(masterGain);
     
     osc.start(startTime);
     osc.stop(releaseStartTime + track.release);

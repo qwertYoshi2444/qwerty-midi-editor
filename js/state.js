@@ -31,7 +31,7 @@ for (let i = 0; i < 8; i++) {
         borderColor: TRACK_COLORS_PALETTE[i].border,
         notes:[],
         volume: 1.0,
-        transpose: 0, // 新規: 個別トランスポーズ
+        transpose: 0,
         waveform: 'sawtooth',
         attack: 0.0001,
         decay: 0.1,
@@ -44,7 +44,7 @@ export const STATE = {
     bpm: 120,
     ppq: 96,
     
-    masterVolume: 1.0, // 新規: 全体ボリューム
+    masterVolume: 1.0, 
     
     zoomX: 0.5,
     zoomY: 20,
@@ -152,6 +152,57 @@ export function addTrack() {
     });
 }
 
+// 新規: トラックの複製
+export function duplicateTrack(trackId) {
+    const sourceTrack = STATE.tracks.find(t => t.id === trackId);
+    if (!sourceTrack) return;
+    
+    const nextId = STATE.tracks.length > 0 ? Math.max(...STATE.tracks.map(t => t.id)) + 1 : 1;
+    
+    // ノートのディープコピー（IDは新しく振り直す）
+    const copiedNotes = sourceTrack.notes.map(n => ({
+        ...n,
+        id: STATE.nextNoteId++,
+        selected: false
+    }));
+
+    const newTrack = {
+        id: nextId,
+        name: `${sourceTrack.name} (Copy)`,
+        color: sourceTrack.color,
+        borderColor: sourceTrack.borderColor,
+        notes: copiedNotes,
+        volume: sourceTrack.volume,
+        transpose: sourceTrack.transpose,
+        waveform: sourceTrack.waveform,
+        attack: sourceTrack.attack,
+        decay: sourceTrack.decay,
+        sustain: sourceTrack.sustain,
+        release: sourceTrack.release,
+        isMuted: sourceTrack.isMuted,
+        isSoloed: false
+    };
+
+    // 複製元トラックのすぐ後ろに挿入
+    const index = STATE.tracks.findIndex(t => t.id === trackId);
+    STATE.tracks.splice(index + 1, 0, newTrack);
+}
+
+// 新規: トラックの削除
+export function deleteTrack(trackId) {
+    if (STATE.tracks.length <= 1) {
+        alert("Cannot delete the last track.");
+        return;
+    }
+    
+    STATE.tracks = STATE.tracks.filter(t => t.id !== trackId);
+    
+    // アクティブトラックが削除された場合、先頭のトラックをアクティブにする
+    if (STATE.activeTrackId === trackId) {
+        STATE.activeTrackId = STATE.tracks[0].id;
+    }
+}
+
 export function loadParsedMIDI(parsedData, appendMode, overrideBpm) {
     if (overrideBpm && parsedData.bpm) {
         STATE.bpm = parsedData.bpm;
@@ -180,7 +231,7 @@ export function loadParsedMIDI(parsedData, appendMode, overrideBpm) {
 
         STATE.tracks.push({
             id: nextId,
-            name: parsedTrack.name || `MIDI Track ${appendMode ? nextId : (index + 1)}`, // 修正: パースした名前の反映
+            name: parsedTrack.name || `MIDI Track ${appendMode ? nextId : (index + 1)}`, 
             color: newColorObj.fill,
             borderColor: newColorObj.border,
             notes: newNotes,
