@@ -1,6 +1,7 @@
 import { STATE } from './state.js';
 
 let audioCtx = null;
+let masterGain = null; // マスターボリューム用
 
 let previewOsc = null;
 let previewGain = null;
@@ -9,16 +10,23 @@ let currentPreviewPitch = -1;
 const scheduledNoteIds = new Set(); 
 let activeNodes =[]; 
 
-// 追加: リファレンス音声用のノード
 let refSource = null;
 let refGain = null;
 
 export function initAudio() {
     if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        masterGain = audioCtx.createGain();
+        masterGain.connect(audioCtx.destination);
     }
     if (audioCtx.state === 'suspended') {
         audioCtx.resume();
+    }
+}
+
+export function setMasterVolume(vol) {
+    if (masterGain && audioCtx) {
+        masterGain.gain.setTargetAtTime(vol, audioCtx.currentTime, 0.05);
     }
 }
 
@@ -26,7 +34,6 @@ function pitchToFreq(pitch) {
     return 440 * Math.pow(2, (pitch - 69) / 12);
 }
 
-// 変更: Solo時のミュートロジックにリファレンストラックを考慮
 export function isTrackAudible(track) {
     if (!track) return false;
     if (track.isMuted) return false;
@@ -34,14 +41,11 @@ export function isTrackAudible(track) {
     const isAnyInstSoloed = STATE.tracks.some(t => t.isSoloed);
     const isRefSoloed = STATE.referenceTrack.isSoloed;
     
-    // いずれかのトラックがソロ化されている場合、自身のソロ状態のみで判定
     if (isAnyInstSoloed || isRefSoloed) {
         return track.isSoloed;
     }
     return true;
 }
-
-// --- 追加: リファレンス音声トラック機能 ---
 
 export async function loadReferenceAudio(file) {
     initAudio();
@@ -61,17 +65,14 @@ export function playReferenceAudio(startTick) {
 
     refGain = audioCtx.createGain();
     
-    // 接続
     refSource.connect(refGain);
-    refGain.connect(audioCtx.destination);
+    refGain.connect(masterGain); // masterGainへ接続
     
-    updateReferenceVolume(); // Solo/Mute・Volumeの適用
+    updateReferenceVolume(); 
 
-    // Tickをオフセット秒数に変換して再生
     const secondsPerTick = 60 / (STATE.bpm * STATE.ppq);
     const offsetSeconds = startTick * secondsPerTick;
 
-    // バッファの長さを超えていなければ再生
     if (offsetSeconds < refSource.buffer.duration) {
         refSource.start(0, offsetSeconds);
     }
@@ -89,7 +90,6 @@ export function stopReferenceAudio() {
     }
 }
 
-// Mute/Soloおよび音量スライダの変更時にリアルタイムでゲインを適用
 export function updateReferenceVolume() {
     if (!refGain || !audioCtx) return;
     
@@ -99,16 +99,12 @@ export function updateReferenceVolume() {
 
     let audible = true;
     if (isMuted) audible = false;
-    // インストゥルメントがソロ化されており、自身がソロ化されていない場合はミュート
     if (isAnyInstSoloed && !isRefSoloed) audible = false;
 
     const targetVol = audible ? STATE.referenceTrack.volume : 0;
-    
-    // ノイズを避けるための微小フェード
     refGain.gain.setTargetAtTime(targetVol, audioCtx.currentTime, 0.01);
 }
 
-// --- プレビュー発音 ---
 export function playPreview(pitch, trackId) {
     if (!audioCtx) return;
     const track = STATE.tracks.find(t => t.id === trackId);
@@ -138,7 +134,7 @@ export function playPreview(pitch, trackId) {
     previewGain.gain.setTargetAtTime(sustainLevel, t + track.attack, track.decay);
 
     previewOsc.connect(previewGain);
-    previewGain.connect(audioCtx.destination);
+    previewGain.connect(masterGain); // masterGainへ接続
     previewOsc.start();
 }
 
@@ -163,8 +159,6 @@ export function stopPreview(immediate = false) {
     previewGain = null;
     currentPreviewPitch = -1;
 }
-
-// --- 再生シーケンサー（スケジューリング） ---
 
 export function startScheduler() {
     scheduledNoteIds.clear();
@@ -231,7 +225,7 @@ function scheduleSingleNote(note, track, startTime, durationTime) {
     gain.gain.exponentialRampToValueAtTime(0.0001, releaseStartTime + track.release);
     
     osc.connect(gain);
-    gain.connect(audioCtx.destination);
+    gain.connect(masterGain); // masterGainへ接続
     
     osc.start(startTime);
     osc.stop(releaseStartTime + track.release);

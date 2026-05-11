@@ -13,7 +13,8 @@ function hslToHex(h, s, l) {
 
 export const TRACK_COLORS_PALETTE =[];
 for (let i = 0; i < 32; i++) {
-    const h = Math.floor((i * (360 / 32)) % 360);
+    // 変更: +215度シフトすることで、インデックス0が青色系（#4585f5に近い色）になるよう調整
+    const h = Math.floor((i * (360 / 32) + 215) % 360);
     const s = i % 2 === 0 ? 60 : 45;
     const l = i % 2 === 0 ? 55 : 45;
     TRACK_COLORS_PALETTE.push({
@@ -43,13 +44,11 @@ export const STATE = {
     bpm: 120,
     ppq: 96,
     
-    // 現在の描画用パラメータ
     zoomX: 0.5,
     zoomY: 20,
     scrollTick: 0,
     scrollPitch: 84,
     
-    // 追加: スムーズアニメーション(Lerp)用の目標パラメータ
     targetZoomX: 0.5,
     targetZoomY: 20,
     targetScrollTick: 0,
