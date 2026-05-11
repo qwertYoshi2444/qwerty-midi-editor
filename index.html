@@ -34,9 +34,8 @@
         #toolbar { 
             height: 40px; background-color: #3b4043; border-bottom: 1px solid #1a1c1d; 
             display: flex; align-items: center; padding: 0 10px; font-size: 14px; gap: 15px; flex-shrink: 0;
-            overflow-x: auto; /* 画面が狭い時にスクロールできるよう */
+            z-index: 100; /* メニューが裏に隠れないよう前面に固定 */
         }
-        #toolbar::-webkit-scrollbar { display: none; }
         
         .tool-btn-group { display: flex; gap: 2px; background-color: #1e2122; padding: 2px; border-radius: 4px; border: 1px solid #1a1c1d; align-items: center; }
         
@@ -75,7 +74,7 @@
         .dropdown-content a:hover { background-color: #4b5155; color: #fff; }
         .dropdown:hover .dropdown-content { display: block; }
         
-        #editor-area { display: flex; flex: 1; overflow: hidden; position: relative; }
+        #editor-area { display: flex; flex: 1; overflow: hidden; position: relative; z-index: 1; }
         
         #track-panel-container {
             width: 200px; background-color: #2c3032; border-right: 1px solid #1a1c1d;
@@ -222,11 +221,15 @@
             </button>
         </div>
         
-        <!-- アイコン化: Snap, BPM, Transpose, MasterVol -->
+        <!-- 修正: 馬蹄型磁石アイコンへの置換 -->
         <div style="display:flex; align-items:center; gap:10px;">
             <div style="display:flex; align-items:center; gap:4px;">
                 <label for="snap-select" class="toolbar-label" title="Snap">
-                    <svg viewBox="0 0 24 24"><path d="M4 11V7a8 8 0 0116 0v4M4 11v4a4 4 0 01-8 0v-4M20 11v4a4 4 0 00-8 0v-4"></path></svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 11V9a8 8 0 0 1 16 0v2"></path>
+                        <path d="M4 11h5v4H4z" fill="currentColor"></path>
+                        <path d="M15 11h5v4h-5z" fill="currentColor"></path>
+                    </svg>
                 </label>
                 <select id="snap-select">
                     <option value="384">Bar</option>
@@ -254,7 +257,6 @@
                 <input type="number" id="transpose-input" value="0" min="-24" max="24" style="width: 35px;">
             </div>
 
-            <!-- 新規: Master Volume -->
             <div class="tool-btn-group" style="padding: 0 5px; gap:4px;">
                 <label for="master-vol-slider" class="toolbar-label" title="Master Volume">
                     <svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
@@ -300,7 +302,6 @@
 <div class="modal-overlay" id="synth-modal">
     <div class="modal-title" id="modal-track-name">Track Settings</div>
     
-    <!-- 個別トランスポーズ入力欄の追加 -->
     <div class="modal-row">
         <label>Transpose</label>
         <input type="number" id="synth-transpose" value="0" min="-48" max="48">
