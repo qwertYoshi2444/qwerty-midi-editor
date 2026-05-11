@@ -34,7 +34,7 @@
         #toolbar { 
             height: 40px; background-color: #3b4043; border-bottom: 1px solid #1a1c1d; 
             display: flex; align-items: center; padding: 0 10px; font-size: 14px; gap: 15px; flex-shrink: 0;
-            z-index: 100; /* メニューが裏に隠れないよう前面に固定 */
+            z-index: 100; 
         }
         
         .tool-btn-group { display: flex; gap: 2px; background-color: #1e2122; padding: 2px; border-radius: 4px; border: 1px solid #1a1c1d; align-items: center; }
@@ -61,19 +61,27 @@
         
         .dropdown { position: relative; display: inline-block; }
         .dropdown-btn { background-color: #2a5a2a; border-color: #1e401e; }
-        .dropdown-content {
-            display: none; position: absolute; right: 0; top: 100%;
+        .dropdown-content, .context-menu {
+            display: none; position: absolute;
             background-color: #2c3032; min-width: 140px; box-shadow: 0 8px 16px rgba(0,0,0,0.5);
-            z-index: 1000; border: 1px solid #555; border-radius: 4px; overflow: hidden;
+            z-index: 2000; border: 1px solid #555; border-radius: 4px; overflow: hidden;
         }
-        .dropdown-content a {
+        .dropdown-content { right: 0; top: 100%; }
+        
+        /* トラックメニュー等の共通スタイル */
+        .dropdown-content a, .context-menu a {
             color: #d0d0d0; padding: 10px 14px; text-decoration: none; display: block; font-size: 12px;
-            border-bottom: 1px solid #1a1c1d;
+            border-bottom: 1px solid #1a1c1d; cursor: pointer;
         }
-        .dropdown-content a:last-child { border-bottom: none; }
-        .dropdown-content a:hover { background-color: #4b5155; color: #fff; }
+        .dropdown-content a:last-child, .context-menu a:last-child { border-bottom: none; }
+        .dropdown-content a:hover, .context-menu a:hover { background-color: #4b5155; color: #fff; }
         .dropdown:hover .dropdown-content { display: block; }
         
+        /* JS制御用の表示クラス */
+        .context-menu.show { display: block; }
+        .context-menu a.danger { color: #ff6666; }
+        .context-menu a.danger:hover { background-color: #ff3333; color: #fff; }
+
         #editor-area { display: flex; flex: 1; overflow: hidden; position: relative; z-index: 1; }
         
         #track-panel-container {
@@ -122,6 +130,7 @@
         .tc-btn:hover { border-color: #888; color: #fff; }
         .tc-btn.muted { background-color: #ff3333; color: #fff; border-color: #cc0000; }
         .tc-btn.soloed { background-color: #33cc33; color: #fff; border-color: #009900; }
+        .tc-btn.menu-btn:hover { background-color: #555; }
         
         .track-vol-container { display: flex; align-items: center; gap: 5px; padding: 0 4px; }
         .track-vol-container label { font-size: 10px; color: #888; }
@@ -221,7 +230,6 @@
             </button>
         </div>
         
-        <!-- 修正: 馬蹄型磁石アイコンへの置換 -->
         <div style="display:flex; align-items:center; gap:10px;">
             <div style="display:flex; align-items:center; gap:4px;">
                 <label for="snap-select" class="toolbar-label" title="Snap">
@@ -299,6 +307,12 @@
     </div>
 </div>
 
+<!-- トラックコンテキストメニュー -->
+<div id="track-context-menu" class="context-menu">
+    <a href="#" id="ctx-menu-duplicate">Duplicate</a>
+    <a href="#" id="ctx-menu-delete" class="danger">Delete</a>
+</div>
+
 <div class="modal-overlay" id="synth-modal">
     <div class="modal-title" id="modal-track-name">Track Settings</div>
     
@@ -314,6 +328,9 @@
             <option value="square">Square</option>
             <option value="triangle">Triangle</option>
             <option value="sine">Sine</option>
+            <!-- パルス波の追加 -->
+            <option value="pulse25">Pulse 25%</option>
+            <option value="pulse12">Pulse 12.5%</option>
         </select>
     </div>
     
