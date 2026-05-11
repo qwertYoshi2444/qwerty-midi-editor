@@ -46,7 +46,7 @@
         .tool-btn svg { width: 14px; height: 14px; fill: currentColor; stroke: currentColor; stroke-width: 0; }
         
         .tool-btn:hover { background-color: #4b5155; }
-        .tool-btn.active { background-color: #ff6600; color: #fff; border-color: #cc5200; font-weight: bold; }
+        .tool-btn.active { background-color: #4585f5; color: #fff; border-color: #2b65d1; font-weight: bold; }
         
         #btn-play.playing { background-color: #33cc33; border-color: #009900; color: #fff; }
 
@@ -88,7 +88,7 @@
         .ref-track-item { display: flex; flex-direction: column; padding: 8px; background-color: #242729; gap: 6px; }
         .ref-file-label {
             font-size: 10px; background: #3b4043; padding: 4px 6px; border-radius: 3px; cursor: pointer; border: 1px solid #555;
-            display: flex; align-items: center; justify-content: center;
+            display: flex; align-items: center; justify-content: center; gap: 4px;
         }
         .ref-file-label:hover { background: #4b5155; color: #fff; border-color: #888; }
         .ref-file-name { font-size: 11px; color: #aaa; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-grow: 1; padding-left: 8px; }
@@ -121,7 +121,7 @@
         
         .track-vol-container { display: flex; align-items: center; gap: 5px; padding: 0 4px; }
         .track-vol-container label { font-size: 10px; color: #888; }
-        .track-vol { flex-grow: 1; accent-color: #ff6600; cursor: pointer; height: 4px; }
+        .track-vol { flex-grow: 1; accent-color: #4585f5; cursor: pointer; height: 4px; }
         
         #btn-add-track {
             margin: 10px; padding: 6px; background-color: #3b4043; border: 1px dashed #555;
@@ -139,7 +139,6 @@
         #keyboard-canvas { width: 80px; background-color: #1e2122; border-right: 1px solid #1a1c1d; flex-shrink: 0; touch-action: none; cursor: pointer; }
         #grid-canvas { flex: 1; background-color: #1e2122; outline: none; touch-action: none; }
         
-        /* モーダル群 */
         .modal-overlay {
             display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background-color: #2c3032; border: 1px solid #555; border-radius: 8px; padding: 20px;
@@ -147,15 +146,14 @@
         }
         .modal-overlay.show { display: block; }
         
-        #synth-modal { width: 340px; } /* ノブを4つ並べるため少し広げる */
+        #synth-modal { width: 340px; } 
         #color-picker-modal { width: 240px; padding: 15px; }
         #midi-load-modal { width: 280px; }
         
-        .modal-title { font-size: 16px; font-weight: bold; margin-bottom: 15px; color: #ff6600; border-bottom: 1px solid #555; padding-bottom: 5px; }
+        .modal-title { font-size: 16px; font-weight: bold; margin-bottom: 15px; color: #4585f5; border-bottom: 1px solid #555; padding-bottom: 5px; }
         .modal-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 13px; }
         .modal-row select { width: 150px; }
         
-        /* 新規: ノブUI用のスタイル */
         .synth-knobs {
             display: flex; justify-content: space-between; margin-top: 20px;
         }
@@ -167,26 +165,28 @@
         }
         .knob svg {
             width: 100%; height: 100%; transform: rotate(135deg);
-            pointer-events: none; /* マウスドラッグを阻害しないよう */
+            pointer-events: none; 
         }
         .knob-bg, .knob-val {
             fill: none; stroke-width: 4; stroke-linecap: round;
-            stroke-dasharray: 70.686 100; /* 270度円弧の構築(半径15) */
+            stroke-dasharray: 70.686 100; 
         }
         .knob-bg { stroke: #1e2122; stroke-dashoffset: 0; }
-        .knob-val { stroke: #ff6600; stroke-dashoffset: 70.686; transition: stroke-dashoffset 0.05s linear; }
+        .knob-val { stroke: #4585f5; stroke-dashoffset: 70.686; transition: stroke-dashoffset 0.05s linear; }
         .knob-label { font-size: 11px; color: #aaa; margin-top: 8px; font-weight: bold; }
         .knob-value-disp { font-size: 10px; color: #fff; margin-top: 2px; font-variant-numeric: tabular-nums; }
         
         .modal-btn-group { display: flex; gap: 10px; margin-top: 20px; }
         .modal-btn { flex: 1; padding: 8px; background-color: #3b4043; border: 1px solid #555; color: #fff; cursor: pointer; border-radius: 4px; }
-        .modal-btn.primary { background-color: #ff6600; border-color: #cc5200; font-weight: bold; }
+        .modal-btn.primary { background-color: #4585f5; border-color: #2b65d1; font-weight: bold; }
         .modal-btn:hover { background-color: #4b5155; }
-        .modal-btn.primary:hover { background-color: #ff8533; }
+        .modal-btn.primary:hover { background-color: #5c95f6; }
         
         .color-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; margin-bottom: 10px; }
         .color-cell { width: 20px; height: 20px; border-radius: 50%; cursor: pointer; border: 1px solid #111; }
         .color-cell:hover { transform: scale(1.2); box-shadow: 0 0 5px rgba(255,255,255,0.8); }
+
+        .toolbar-icon { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; vertical-align: -2px; }
     </style>
 </head>
 <body>
@@ -199,7 +199,7 @@
         
         <div class="tool-btn-group">
             <button class="tool-btn" id="btn-play" title="Play/Stop (Space)">
-                <svg viewBox="0 0 24 24" fill="currentColor" id="icon-play"><path d="M8 5v14l11-7z"/></svg> <span id="label-play">Play</span>
+                <svg viewBox="0 0 24 24" fill="currentColor" id="icon-play" stroke-width="0"><path d="M8 5v14l11-7z"/></svg> <span id="label-play">Play</span>
             </button>
         </div>
         
@@ -217,8 +217,10 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> Delete
             </button>
         </div>
-        <div>
-            <label for="snap-select">🧲 Snap:</label>
+        
+        <div style="display: flex; align-items: center; gap: 4px;">
+            <svg class="toolbar-icon" viewBox="0 0 24 24"><path d="M4 11V7a8 8 0 0 1 16 0v4"/><path d="M4 11h4v4H4z"/><path d="M16 11h4v4h-4z"/></svg>
+            <label for="snap-select">Snap:</label>
             <select id="snap-select">
                 <option value="384">Bar</option>
                 <option value="96">Beat</option>
@@ -230,13 +232,21 @@
                 <option value="0">None</option>
             </select>
         </div>
-        <div>
-            <label for="bpm-input">⏱ BPM:</label>
+        
+        <div style="display: flex; align-items: center; gap: 4px;">
+            <svg class="toolbar-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <label for="bpm-input">BPM:</label>
             <input type="number" id="bpm-input" value="120" min="20" max="300">
         </div>
+        
         <div class="tool-btn-group" style="padding: 0 5px;">
             <label for="transpose-input" style="font-size: 12px; margin-right: 2px;">Trans:</label>
             <input type="number" id="transpose-input" value="0" min="-24" max="24" style="width: 35px;">
+        </div>
+
+        <div class="tool-btn-group" style="padding: 0 5px; gap: 4px;" title="Master Volume (Preview/Playback only)">
+            <svg class="toolbar-icon" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+            <input type="range" id="master-vol-slider" min="0" max="150" value="100" style="width: 50px; accent-color: #4585f5;">
         </div>
         
         <div class="spacer"></div>
@@ -273,7 +283,6 @@
     </div>
 </div>
 
-<!-- 変更: ノブUIを組み込んだSynthモーダル -->
 <div class="modal-overlay" id="synth-modal">
     <div class="modal-title" id="modal-track-name">Track Settings</div>
     <div class="modal-row" style="margin-bottom: 20px;">
