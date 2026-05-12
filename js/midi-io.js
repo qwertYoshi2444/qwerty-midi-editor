@@ -1,7 +1,7 @@
 import { STATE } from './state.js';
 
 export function exportToMIDI() {
-    const hasNotes = STATE.tracks.some(track => track.notes.length > 0);
+    const hasNotes = STATE.tracks.some(track => track.notes.length > 0 || track.linkedTo !== null);
     if (!hasNotes) {
         alert("ノートが配置されていません。");
         return;
@@ -41,7 +41,14 @@ export function exportToMIDI() {
     trackChunks.push(conductorData);
 
     STATE.tracks.forEach((track, trackIndex) => {
-        const activeNotes = track.notes.filter(n => !n.muted);
+        // リンクトラックの場合、リンク元のノートを取得
+        let trackNotes = track.notes;
+        if (track.linkedTo !== null) {
+            const src = STATE.tracks.find(t => t.id === track.linkedTo);
+            if (src) trackNotes = src.notes;
+        }
+
+        const activeNotes = trackNotes.filter(n => !n.muted);
         if (activeNotes.length === 0) return;
 
         let trackData =[];
@@ -54,7 +61,6 @@ export function exportToMIDI() {
         let events =[];
         const trackTranspose = track.transpose || 0;
         activeNotes.forEach(note => {
-            // トラック個別のトランスポーズをMIDI出力時にも適用
             const exportPitch = Math.max(0, Math.min(127, note.pitch + STATE.globalTranspose + trackTranspose));
             events.push({ type: 'on', tick: note.tick, pitch: exportPitch, velocity: 100 });
             events.push({ type: 'off', tick: note.tick + note.duration, pitch: exportPitch, velocity: 0 });
@@ -163,7 +169,7 @@ export function parseMIDI(arrayBuffer) {
 
         let currentTick = 0;
         let runningStatus = 0;
-        let parsedTrackName = ''; // トラック名保持用
+        let parsedTrackName = '';
         const activeNotes = {}; 
         const trackNotes =[];
 
@@ -181,7 +187,7 @@ export function parseMIDI(arrayBuffer) {
 
             const type = status >> 4;
 
-            if (type === 0x8 || (type === 0x9 && data.getUint8(offset + 1) === 0)) { // Note Off
+            if (type === 0x8 || (type === 0x9 && data.getUint8(offset + 1) === 0)) { 
                 const pitch = read8();
                 read8(); 
                 if (activeNotes[pitch] !== undefined) {
@@ -189,7 +195,7 @@ export function parseMIDI(arrayBuffer) {
                     trackNotes.push({ pitch, tick: startTick, duration: currentTick - startTick });
                     delete activeNotes[pitch];
                 }
-            } else if (type === 0x9) { // Note On
+            } else if (type === 0x9) { 
                 const pitch = read8();
                 read8(); 
                 activeNotes[pitch] = currentTick;
@@ -198,19 +204,19 @@ export function parseMIDI(arrayBuffer) {
             } else if (type === 0xC || type === 0xD) { 
                 offset += 1; 
             } else if (type === 0xF) { 
-                if (status === 0xFF) { // Meta Event
+                if (status === 0xFF) { 
                     const metaType = read8();
                     const metaLen = readVLQ();
-                    if (metaType === 0x51 && metaLen === 3) { // Tempo
+                    if (metaType === 0x51 && metaLen === 3) { 
                         const t1 = read8(), t2 = read8(), t3 = read8();
                         const microsec = (t1 << 16) | (t2 << 8) | t3;
                         resultBpm = Math.round(60000000 / microsec);
-                    } else if (metaType === 0x03) { // Track Name
+                    } else if (metaType === 0x03) { 
                         parsedTrackName = readString(metaLen);
                     } else {
                         offset += metaLen;
                     }
-                } else if (status === 0xF0 || status === 0xF7) { // SysEx
+                } else if (status === 0xF0 || status === 0xF7) { 
                     const sysexLen = readVLQ();
                     offset += sysexLen;
                 }

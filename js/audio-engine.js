@@ -13,7 +13,6 @@ let activeNodes =[];
 let refSource = null;
 let refGain = null;
 
-// 新規: パルス波のPeriodicWaveをキャッシュ
 let pulse25Wave = null;
 let pulse12Wave = null;
 
@@ -25,7 +24,6 @@ export function initAudio() {
         masterGain.connect(audioCtx.destination);
         updateMasterVolume();
 
-        // パルス波のテーブル生成 (フーリエ級数展開を用いた近似)
         pulse25Wave = createPulseWave(0.25);
         pulse12Wave = createPulseWave(0.125);
     }
@@ -34,17 +32,15 @@ export function initAudio() {
     }
 }
 
-// 新規: 指定したデューティ比(duty)のPeriodicWaveを生成
 function createPulseWave(duty) {
-    const terms = 30; // 倍音の数（あまり多いと高音域でエイリアシングノイズが発生するため適度に抑える）
+    const terms = 30; 
     const real = new Float32Array(terms + 1);
     const imag = new Float32Array(terms + 1);
     
     real[0] = duty;
     for (let i = 1; i <= terms; i++) {
-        // an = 2 / (n * PI) * sin(n * PI * duty)
         real[i] = (2 / (i * Math.PI)) * Math.sin(i * Math.PI * duty);
-        imag[i] = 0; // 位相シフトなし
+        imag[i] = 0; 
     }
     return audioCtx.createPeriodicWave(real, imag, { disableNormalization: false });
 }
@@ -147,7 +143,6 @@ export function playPreview(pitch, trackId) {
     previewOsc = audioCtx.createOscillator();
     previewGain = audioCtx.createGain();
 
-    // 変更: カスタム波形の適用
     if (track.waveform === 'pulse25' && pulse25Wave) {
         previewOsc.setPeriodicWave(pulse25Wave);
     } else if (track.waveform === 'pulse12' && pulse12Wave) {
@@ -225,14 +220,24 @@ export function scheduleNotes(currentTick, lookaheadTime, secondsPerTick) {
     STATE.tracks.forEach(track => {
         if (!isTrackAudible(track)) return;
         
-        track.notes.forEach(note => {
-            if (note.tick >= currentTick && note.tick < endTick && !note.muted && !scheduledNoteIds.has(note.id)) {
+        // リンクトラックの場合、リンク元のノート群を参照する
+        let notesToPlay = track.notes;
+        if (track.linkedTo !== null) {
+            const srcTrack = STATE.tracks.find(t => t.id === track.linkedTo);
+            if (srcTrack) notesToPlay = srcTrack.notes;
+        }
+        
+        notesToPlay.forEach(note => {
+            // トラックIDを含めた一意の複合キーでスケジューリング状態を管理（リンク元と重複して発音させるため）
+            const compoundId = `${track.id}_${note.id}`;
+            
+            if (note.tick >= currentTick && note.tick < endTick && !note.muted && !scheduledNoteIds.has(compoundId)) {
                 const timeOffset = (note.tick - currentTick) * secondsPerTick;
                 const startTime = audioCtx.currentTime + timeOffset;
                 const durationTime = note.duration * secondsPerTick;
                 
                 scheduleSingleNote(note, track, startTime, durationTime);
-                scheduledNoteIds.add(note.id);
+                scheduledNoteIds.add(compoundId);
             }
         });
     });
@@ -242,7 +247,6 @@ function scheduleSingleNote(note, track, startTime, durationTime) {
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     
-    // 変更: カスタム波形の適用
     if (track.waveform === 'pulse25' && pulse25Wave) {
         osc.setPeriodicWave(pulse25Wave);
     } else if (track.waveform === 'pulse12' && pulse12Wave) {
@@ -268,7 +272,7 @@ function scheduleSingleNote(note, track, startTime, durationTime) {
     gain.gain.exponentialRampToValueAtTime(0.0001, releaseStartTime + track.release);
     
     osc.connect(gain);
-    gain.connect(masterGain);
+    gain.connect(masterGain); 
     
     osc.start(startTime);
     osc.stop(releaseStartTime + track.release);

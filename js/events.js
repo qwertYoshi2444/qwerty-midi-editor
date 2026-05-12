@@ -14,6 +14,12 @@ let isTimelineDragging = false;
 let lastMouseX = 0;
 let lastMouseY = 0;
 
+// リンクトラック選択中は編集操作をブロックするヘルパー
+function isEditingLocked() {
+    const track = STATE.tracks.find(t => t.id === STATE.activeTrackId);
+    return track && track.linkedTo !== null;
+}
+
 export function initEvents(gridCvs) {
     canvasGrid = gridCvs;
     canvasTimeline = document.getElementById('timeline-canvas');
@@ -89,6 +95,8 @@ function onMouseDown(e) {
         return;
     }
 
+    if (isEditingLocked()) return; // リンクトラックならツール操作をブロック
+
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
@@ -124,6 +132,11 @@ function onMouseMove(e) {
     const rawTick = xToTick(mouseX);
     const pitch = getPitchAtY(mouseY);
 
+    if (isEditingLocked()) {
+        updateCursor(mouseX, mouseY, rawTick);
+        return;
+    }
+
     if (STATE.currentTool === 'draw') DrawTool.onMouseMove(e, mouseX, mouseY, rawTick, pitch);
     else if (STATE.currentTool === 'select') SelectTool.onMouseMove(e, mouseX, mouseY);
     else if (STATE.currentTool === 'mute') MuteTool.onMouseMove(e, mouseX, mouseY);
@@ -147,10 +160,12 @@ function onMouseUp(e) {
         return;
     }
 
-    if (STATE.currentTool === 'draw') DrawTool.onMouseUp();
-    else if (STATE.currentTool === 'select') SelectTool.onMouseUp();
-    else if (STATE.currentTool === 'mute') MuteTool.onMouseUp();
-    else if (STATE.currentTool === 'delete') DeleteTool.onMouseUp();
+    if (!isEditingLocked()) {
+        if (STATE.currentTool === 'draw') DrawTool.onMouseUp();
+        else if (STATE.currentTool === 'select') SelectTool.onMouseUp();
+        else if (STATE.currentTool === 'mute') MuteTool.onMouseUp();
+        else if (STATE.currentTool === 'delete') DeleteTool.onMouseUp();
+    }
 
     if (canvasGrid) {
         const rect = canvasGrid.getBoundingClientRect();
@@ -164,7 +179,14 @@ function onMouseUp(e) {
 
 function updateCursor(mouseX, mouseY, rawTick) {
     if (isMiddleDragging || editState.action || isTimelineDragging) return;
-    if (STATE.currentTool !== 'draw' || !canvasGrid) return;
+    if (!canvasGrid) return;
+    
+    if (isEditingLocked()) {
+        canvasGrid.style.cursor = 'not-allowed';
+        return;
+    }
+
+    if (STATE.currentTool !== 'draw') return;
 
     const hoveredNote = getNoteAt(mouseX, mouseY);
     if (hoveredNote && Math.abs(rawTick - (hoveredNote.tick + hoveredNote.duration)) <= (8 / STATE.zoomX)) {
@@ -214,6 +236,8 @@ function onKeyDown(e) {
     if (e.key.toLowerCase() === 't') setTool('mute');
     if (e.key.toLowerCase() === 'd') setTool('delete');
 
+    if (isEditingLocked()) return; // これ以降の編集ショートカットをブロック
+
     if (e.ctrlKey && e.key.toLowerCase() === 'a') {
         e.preventDefault();
         STATE.notes.forEach(n => n.selected = true);
@@ -228,7 +252,6 @@ function onKeyDown(e) {
     if (e.ctrlKey && e.key.toLowerCase() === 'x') { cutNotes(); renderAll(); }
     if (e.ctrlKey && e.key.toLowerCase() === 'v') { pasteNotes(); renderAll(); }
     
-    // トランスポーズショートカット
     if (e.ctrlKey && e.key === 'ArrowUp') { shiftPitch(12); e.preventDefault(); }
     if (e.ctrlKey && e.key === 'ArrowDown') { shiftPitch(-12); e.preventDefault(); }
     if (e.shiftKey && e.key === 'ArrowUp') { shiftPitch(1); e.preventDefault(); }

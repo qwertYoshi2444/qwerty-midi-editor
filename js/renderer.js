@@ -4,7 +4,7 @@ import { tickToX, xToTick, pitchToY, isBlackKey, getNoteName } from './utils.js'
 let ctxGrid, ctxKeyboard, ctxTimeline;
 let canvasGrid, canvasKeyboard, canvasTimeline;
 let animationFrameId = null;
-let animationFrameIdLerp = null; // 追加: Lerpアニメーション用
+let animationFrameIdLerp = null;
 
 export function initRenderer(gridCvs, keyCvs, timeCvs) {
     canvasGrid = gridCvs;
@@ -52,14 +52,13 @@ function animateFadeOut() {
     }
 }
 
-// --- 追加: スムーズな移動・ズーム(Lerp)のループ処理 ---
 export function startLerpAnimation() {
     if (!animationFrameIdLerp) animateLerp();
 }
 
 function animateLerp() {
     let needsUpdate = false;
-    const lerpFactor = 0.2; // 追従速度（約0.2秒で収束）
+    const lerpFactor = 0.2; 
 
     if (Math.abs(STATE.targetZoomX - STATE.zoomX) > 0.001) {
         STATE.zoomX += (STATE.targetZoomX - STATE.zoomX) * lerpFactor;
@@ -139,6 +138,9 @@ function renderGrid() {
 function renderGhostNotes() {
     const heightPadding = 2;
     STATE.tracks.filter(t => t.id !== STATE.activeTrackId).forEach(track => {
+        // リンクトラックのゴーストは表示しない（実体が別にあるため）
+        if (track.linkedTo !== null) return;
+        
         track.notes.forEach(note => {
             const x = tickToX(note.tick);
             const y = pitchToY(note.pitch);
@@ -164,6 +166,8 @@ function renderNotes() {
     const activeTrack = STATE.tracks.find(t => t.id === STATE.activeTrackId);
     if (!activeTrack) return;
     
+    const isLinked = activeTrack.linkedTo !== null;
+    
     STATE.notes.forEach(note => {
         const x = tickToX(note.tick);
         const y = pitchToY(note.pitch);
@@ -174,10 +178,16 @@ function renderNotes() {
         let fillColor = activeTrack.color;
         let strokeColor = activeTrack.borderColor;
         
-        if (note.muted) {
-            fillColor = '#555555'; strokeColor = '#333333';
-        } else if (note.selected) {
-            fillColor = '#ff3333'; strokeColor = '#cc0000';
+        // リンクトラックの場合は目立つグレーで固定描画
+        if (isLinked) {
+            fillColor = note.muted ? '#666666' : '#999999';
+            strokeColor = '#555555';
+        } else {
+            if (note.muted) {
+                fillColor = '#555555'; strokeColor = '#333333';
+            } else if (note.selected) {
+                fillColor = '#ff3333'; strokeColor = '#cc0000';
+            }
         }
 
         ctxGrid.fillStyle = fillColor; 
@@ -195,8 +205,17 @@ function renderNotes() {
         ctxGrid.fillStyle = note.muted ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.3)'; 
         ctxGrid.fillRect(x + 2, y + heightPadding + (h/2) - 1, w - 4, 2);
 
+        // リンクトラックの場合、斜線を引いて編集不可であることを示す
+        if (isLinked && w > 10) {
+            ctxGrid.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+            ctxGrid.beginPath();
+            ctxGrid.moveTo(x + 3, y + h - heightPadding - 2);
+            ctxGrid.lineTo(x + w - 3, y + heightPadding + 2);
+            ctxGrid.stroke();
+        }
+
         if (w > 25 && h > 10 && !note.muted) {
-            ctxGrid.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctxGrid.fillStyle = isLinked ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.8)';
             const fontSize = Math.min(11, h - 4); 
             ctxGrid.font = `${fontSize}px sans-serif`;
             ctxGrid.fillText(getNoteName(note.pitch), x + 4, y + (h / 2) + (fontSize / 3));
