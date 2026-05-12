@@ -86,7 +86,7 @@
             width: 200px; background-color: #2c3032; border-right: 1px solid #1a1c1d;
             display: flex; flex-direction: column; transition: width 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
             overflow: hidden; flex-shrink: 0;
-            position: relative; /* 並び替えの基準用 */
+            position: relative; 
         }
         #track-panel-container.closed { width: 0px; border-right: none; }
         
@@ -116,7 +116,6 @@
         .track-item:hover { background-color: #3b4043; }
         .track-item.active { background-color: #4b5155; }
         
-        /* 新規: ドラッグ中のトラックのスタイル */
         .track-item.dragging {
             opacity: 0.95;
             background-color: #5b6266 !important;
@@ -130,6 +129,9 @@
         .track-color-indicator { width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; border: 1px solid #000; flex-shrink: 0; cursor: pointer; }
         .track-name { flex-grow: 1; font-size: 12px; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: text; }
         
+        /* 新規: リンクトラック名のハイライト */
+        .track-name.is-linked { color: #88ccff; font-style: italic; }
+
         .track-controls { display: flex; gap: 4px; }
         .tc-btn { 
             width: 20px; height: 20px; border-radius: 3px; border: 1px solid #555; background-color: #1e2122; 
@@ -144,7 +146,6 @@
         .track-vol-container label { font-size: 10px; color: #888; }
         .track-vol { flex-grow: 1; accent-color: #ff6600; cursor: pointer; height: 4px; }
         
-        /* 新規: ドラッグハンドルのスタイル */
         .track-drag-handle {
             cursor: grab;
             display: flex; align-items: center; justify-content: center;
@@ -169,7 +170,6 @@
         #keyboard-canvas { width: 80px; background-color: #1e2122; border-right: 1px solid #1a1c1d; flex-shrink: 0; touch-action: none; cursor: pointer; }
         #grid-canvas { flex: 1; background-color: #1e2122; outline: none; touch-action: none; }
         
-        /* モーダル群 */
         .modal-overlay {
             display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background-color: #2c3032; border: 1px solid #555; border-radius: 8px; padding: 20px;
@@ -185,23 +185,11 @@
         .modal-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 13px; }
         .modal-row select, .modal-row input { width: 130px; }
         
-        .synth-knobs {
-            display: flex; justify-content: space-between; margin-top: 20px;
-        }
-        .knob-wrapper {
-            display: flex; flex-direction: column; align-items: center; width: 65px;
-        }
-        .knob {
-            width: 40px; height: 40px; position: relative; cursor: ns-resize;
-        }
-        .knob svg {
-            width: 100%; height: 100%; transform: rotate(135deg);
-            pointer-events: none;
-        }
-        .knob-bg, .knob-val {
-            fill: none; stroke-width: 4; stroke-linecap: round;
-            stroke-dasharray: 70.686 100;
-        }
+        .synth-knobs { display: flex; justify-content: space-between; margin-top: 20px; }
+        .knob-wrapper { display: flex; flex-direction: column; align-items: center; width: 65px; }
+        .knob { width: 40px; height: 40px; position: relative; cursor: ns-resize; }
+        .knob svg { width: 100%; height: 100%; transform: rotate(135deg); pointer-events: none; }
+        .knob-bg, .knob-val { fill: none; stroke-width: 4; stroke-linecap: round; stroke-dasharray: 70.686 100; }
         .knob-bg { stroke: #1e2122; stroke-dashoffset: 0; }
         .knob-val { stroke: #ff6600; stroke-dashoffset: 70.686; transition: stroke-dashoffset 0.05s linear; }
         .knob-label { font-size: 11px; color: #aaa; margin-top: 8px; font-weight: bold; }
@@ -326,6 +314,7 @@
 
 <div id="track-context-menu" class="context-menu">
     <a href="#" id="ctx-menu-duplicate">Duplicate</a>
+    <a href="#" id="ctx-menu-link">🔗 Create Link</a> <!-- 追加: リンク作成 -->
     <a href="#" id="ctx-menu-delete" class="danger">Delete</a>
 </div>
 
@@ -352,43 +341,27 @@
     <div class="synth-knobs">
         <div class="knob-wrapper" data-param="attack">
             <div class="knob">
-                <svg viewBox="0 0 40 40">
-                    <circle class="knob-bg" cx="20" cy="20" r="15"></circle>
-                    <circle class="knob-val" cx="20" cy="20" r="15"></circle>
-                </svg>
+                <svg viewBox="0 0 40 40"><circle class="knob-bg" cx="20" cy="20" r="15"></circle><circle class="knob-val" cx="20" cy="20" r="15"></circle></svg>
             </div>
-            <div class="knob-label">Attack</div>
-            <div class="knob-value-disp">0.1ms</div>
+            <div class="knob-label">Attack</div><div class="knob-value-disp">0.1ms</div>
         </div>
         <div class="knob-wrapper" data-param="decay">
             <div class="knob">
-                <svg viewBox="0 0 40 40">
-                    <circle class="knob-bg" cx="20" cy="20" r="15"></circle>
-                    <circle class="knob-val" cx="20" cy="20" r="15"></circle>
-                </svg>
+                <svg viewBox="0 0 40 40"><circle class="knob-bg" cx="20" cy="20" r="15"></circle><circle class="knob-val" cx="20" cy="20" r="15"></circle></svg>
             </div>
-            <div class="knob-label">Decay</div>
-            <div class="knob-value-disp">100ms</div>
+            <div class="knob-label">Decay</div><div class="knob-value-disp">100ms</div>
         </div>
         <div class="knob-wrapper" data-param="sustain">
             <div class="knob">
-                <svg viewBox="0 0 40 40">
-                    <circle class="knob-bg" cx="20" cy="20" r="15"></circle>
-                    <circle class="knob-val" cx="20" cy="20" r="15"></circle>
-                </svg>
+                <svg viewBox="0 0 40 40"><circle class="knob-bg" cx="20" cy="20" r="15"></circle><circle class="knob-val" cx="20" cy="20" r="15"></circle></svg>
             </div>
-            <div class="knob-label">Sustain</div>
-            <div class="knob-value-disp">75%</div>
+            <div class="knob-label">Sustain</div><div class="knob-value-disp">75%</div>
         </div>
         <div class="knob-wrapper" data-param="release">
             <div class="knob">
-                <svg viewBox="0 0 40 40">
-                    <circle class="knob-bg" cx="20" cy="20" r="15"></circle>
-                    <circle class="knob-val" cx="20" cy="20" r="15"></circle>
-                </svg>
+                <svg viewBox="0 0 40 40"><circle class="knob-bg" cx="20" cy="20" r="15"></circle><circle class="knob-val" cx="20" cy="20" r="15"></circle></svg>
             </div>
-            <div class="knob-label">Release</div>
-            <div class="knob-value-disp">5ms</div>
+            <div class="knob-label">Release</div><div class="knob-value-disp">5ms</div>
         </div>
     </div>
     
@@ -427,13 +400,10 @@
 <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-            navigator.serviceWorker.register('./sw.js')
-                .then(reg => console.log('Service Worker 登録成功:', reg.scope))
-                .catch(err => console.error('Service Worker 登録失敗:', err));
+            navigator.serviceWorker.register('./sw.js').catch(err => console.error(err));
         });
     }
 </script>
-    
 <script type="module" src="./js/main.js"></script>
 </body>
 </html>
