@@ -1,4 +1,4 @@
-import { STATE, clearSelection, addTrack, duplicateTrack, deleteTrack, TRACK_COLORS_PALETTE, loadParsedMIDI } from './state.js';
+import { STATE, clearSelection, addTrack, duplicateTrack, createLinkedTrack, deleteTrack, TRACK_COLORS_PALETTE, loadParsedMIDI } from './state.js';
 import { initRenderer, renderAll } from './renderer.js';
 import { initEvents } from './events.js';
 import { updateReferenceVolume, loadReferenceAudio, updateMasterVolume } from './audio-engine.js';
@@ -9,11 +9,8 @@ let editingColorTrackId = null;
 let pendingMidiData = null; 
 
 const ICON_FOLDER = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;margin-right:4px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`;
-
-// サイズ修正: 12px -> 14px
 const ICON_SETTINGS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
 const ICON_MENU = `<svg viewBox="0 0 24 24" fill="currentColor" style="width:14px;height:14px;"><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg>`;
-// ドラッグ用ハンドルアイコン
 const ICON_DRAG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><line x1="4" y1="9" x2="20" y2="9"></line><line x1="4" y1="15" x2="20" y2="15"></line></svg>`;
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -251,14 +248,11 @@ function setupRefTrackPanel() {
     container.appendChild(refDiv);
 }
 
-// ----------------------------------------------------
-// ドラッグ＆ドロップ並べ替え用グローバル変数
 let draggedTrackItem = null;
 let dragGhost = null;
 let dragStartY = 0;
 let dragScrollInterval = null;
 let longPressTimeout = null;
-// ----------------------------------------------------
 
 function setupTrackPanel() {
     const trackList = document.getElementById('track-list');
@@ -281,14 +275,23 @@ function setupTrackPanel() {
 
         const nameDiv = document.createElement('div');
         nameDiv.className = 'track-name';
-        nameDiv.textContent = track.name;
-        nameDiv.title = "Double-click to rename";
+        
+        // リンク状態のUI表示
+        if (track.linkedTo !== null) {
+            nameDiv.innerHTML = `🔗 ${track.name}`;
+            nameDiv.classList.add('is-linked');
+            nameDiv.title = "Linked Track (Cannot edit notes directly)";
+        } else {
+            nameDiv.textContent = track.name;
+            nameDiv.title = "Double-click to rename";
+        }
+        
         nameDiv.addEventListener('dblclick', (e) => {
             e.stopPropagation();
             const newName = prompt("Enter new track name:", track.name);
             if (newName && newName.trim() !== '') {
                 track.name = newName.trim();
-                nameDiv.textContent = track.name;
+                setupTrackPanel();
             }
         });
 
@@ -355,13 +358,11 @@ function setupTrackPanel() {
         const volContainer = document.createElement('div');
         volContainer.className = 'track-vol-container';
         
-        // 新規: ドラッグハンドルを追加
         const dragHandle = document.createElement('div');
         dragHandle.className = 'track-drag-handle';
         dragHandle.innerHTML = ICON_DRAG;
         dragHandle.title = "Drag to reorder (Long press on mobile)";
         
-        // --- ドラッグ＆ドロップ用イベントリスナー ---
         const startDrag = (e, clientY) => {
             e.preventDefault();
             e.stopPropagation();
@@ -370,7 +371,6 @@ function setupTrackPanel() {
             draggedTrackItem = itemDiv;
             dragStartY = clientY;
             
-            // ゴースト要素を作成してカーソルに追従させる
             dragGhost = itemDiv.cloneNode(true);
             dragGhost.classList.add('dragging');
             dragGhost.style.position = 'absolute';
@@ -388,27 +388,24 @@ function setupTrackPanel() {
             startDragScrollLoop();
         };
 
-        // PCマウス操作
         dragHandle.addEventListener('mousedown', (e) => {
             if (e.button !== 0) return;
             startDrag(e, e.clientY);
         });
 
-        // モバイルタッチ操作 (長押し判定)
         dragHandle.addEventListener('touchstart', (e) => {
             const touchY = e.touches[0].clientY;
             longPressTimeout = setTimeout(() => {
                 startDrag(e, touchY);
-            }, 400); // 400ms長押しでドラッグ開始
+            }, 400); 
         }, { passive: false });
 
         dragHandle.addEventListener('touchend', () => {
             if (longPressTimeout) clearTimeout(longPressTimeout);
         });
         dragHandle.addEventListener('touchmove', () => {
-            if (longPressTimeout) clearTimeout(longPressTimeout); // スワイプした場合はキャンセル
+            if (longPressTimeout) clearTimeout(longPressTimeout);
         }, { passive: true });
-        // ------------------------------------------
 
         const volLabel = document.createElement('label');
         volLabel.textContent = 'Vol';
@@ -432,7 +429,7 @@ function setupTrackPanel() {
         volSlider.addEventListener('mousedown', e => e.stopPropagation());
         volSlider.addEventListener('touchstart', e => e.stopPropagation(), {passive: true});
 
-        volContainer.appendChild(dragHandle); // 配置
+        volContainer.appendChild(dragHandle); 
         volContainer.appendChild(volLabel);
         volContainer.appendChild(volSlider);
 
@@ -462,18 +459,15 @@ function setupTrackPanel() {
     trackList.appendChild(addBtn);
 }
 
-// --- 並び替えドラッグ中のグローバルイベント処理 ---
 function handleDragMove(clientY) {
     if (!dragGhost || !draggedTrackItem) return;
 
     const trackList = document.getElementById('track-list');
     const listRect = trackList.getBoundingClientRect();
     
-    // ゴーストのY座標更新（スクロール位置も加味）
     let newTop = clientY - listRect.top + trackList.scrollTop - (dragGhost.offsetHeight / 2);
     dragGhost.style.top = `${newTop}px`;
 
-    // どのアイテムと入れ替えるか判定
     const items = Array.from(trackList.querySelectorAll('.track-item:not(.dragging)'));
     const mouseY = clientY - listRect.top + trackList.scrollTop;
 
@@ -491,7 +485,6 @@ function handleDragMove(clientY) {
         const itemTop = targetItem.offsetTop;
         const itemHeight = targetItem.offsetHeight;
         
-        // ターゲットの上半分か下半分かで挿入位置を決定
         if (mouseY < itemTop + itemHeight / 2) {
             trackList.insertBefore(draggedTrackItem, targetItem);
         } else {
@@ -505,13 +498,11 @@ function stopDrag() {
 
     const trackList = document.getElementById('track-list');
     
-    // アニメーションループの停止
     if (dragScrollInterval) {
         cancelAnimationFrame(dragScrollInterval);
         dragScrollInterval = null;
     }
 
-    // STATE.tracksの配列をDOMの順序に合わせて更新する
     const newTracksArray = [];
     const items = trackList.querySelectorAll('.track-item:not(.dragging)');
     items.forEach(item => {
@@ -521,7 +512,6 @@ function stopDrag() {
     });
     STATE.tracks = newTracksArray;
 
-    // クリーンアップ
     if (dragGhost) {
         dragGhost.remove();
         dragGhost = null;
@@ -530,7 +520,6 @@ function stopDrag() {
     draggedTrackItem = null;
     document.body.style.cursor = 'default';
 
-    // 再描画して状態を確定
     setupTrackPanel();
 }
 
@@ -540,14 +529,13 @@ window.addEventListener('mousemove', e => {
 window.addEventListener('touchmove', e => {
     if (draggedTrackItem) {
         handleDragMove(e.touches[0].clientY);
-        e.preventDefault(); // スクロール防止
+        e.preventDefault(); 
     }
 }, { passive: false });
 
 window.addEventListener('mouseup', stopDrag);
 window.addEventListener('touchend', stopDrag);
 
-// --- ドラッグ中の自動スクロールループ ---
 let dragCurrentMouseY = 0;
 window.addEventListener('mousemove', e => dragCurrentMouseY = e.clientY);
 window.addEventListener('touchmove', e => { if(draggedTrackItem) dragCurrentMouseY = e.touches[0].clientY; }, {passive:true});
@@ -559,12 +547,12 @@ function startDragScrollLoop() {
         if (!draggedTrackItem) return;
         
         const rect = trackList.getBoundingClientRect();
-        const threshold = 30; // 画面端から30px以内でスクロール開始
+        const threshold = 30; 
         const scrollSpeed = 5;
 
         if (dragCurrentMouseY < rect.top + threshold) {
             trackList.scrollTop -= scrollSpeed;
-            handleDragMove(dragCurrentMouseY); // スクロールした分も再計算
+            handleDragMove(dragCurrentMouseY); 
         } else if (dragCurrentMouseY > rect.bottom - threshold) {
             trackList.scrollTop += scrollSpeed;
             handleDragMove(dragCurrentMouseY);
@@ -574,7 +562,6 @@ function startDragScrollLoop() {
     }
     dragScrollInterval = requestAnimationFrame(loop);
 }
-// ----------------------------------------------------
 
 function showTrackMenu(e, trackId) {
     const menu = document.getElementById('track-context-menu');
@@ -587,6 +574,15 @@ function showTrackMenu(e, trackId) {
     document.getElementById('ctx-menu-duplicate').onclick = (ev) => {
         ev.preventDefault();
         duplicateTrack(trackId);
+        setupTrackPanel();
+        renderAll();
+        menu.classList.remove('show');
+    };
+
+    // 新規: リンク作成のバインド
+    document.getElementById('ctx-menu-link').onclick = (ev) => {
+        ev.preventDefault();
+        createLinkedTrack(trackId);
         setupTrackPanel();
         renderAll();
         menu.classList.remove('show');

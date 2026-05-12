@@ -36,38 +36,32 @@ for (let i = 0; i < 8; i++) {
         attack: 0.0001,
         decay: 0.1,
         sustain: 0.75,
-        release: 0.005
+        release: 0.005,
+        linkedTo: null // 新規: リンク先トラックID
     });
 }
 
 export const STATE = {
     bpm: 120,
     ppq: 96,
-    
     masterVolume: 1.0, 
-    
     zoomX: 0.5,
     zoomY: 20,
     scrollTick: 0,
     scrollPitch: 84,
-    
     targetZoomX: 0.5,
     targetZoomY: 20,
     targetScrollTick: 0,
     targetScrollPitch: 84,
-    
     playheadTick: 0,
     isPlaying: false,
-    
     nextNoteId: 1,
     snap: 24,
     lastDuration: 24,
     currentTool: 'draw',
-    
     tracks: initialTracks,
     activeTrackId: 1,
     dyingNotes:[],
-    
     globalTranspose: 0,
 
     referenceTrack: {
@@ -89,11 +83,19 @@ export const STATE = {
 
     get notes() {
         const track = this.tracks.find(t => t.id === this.activeTrackId);
-        return track ? track.notes :[];
+        if (!track) return [];
+        // アクティブトラックがリンクの場合、リンク元のノートを透過的に返す
+        if (track.linkedTo !== null && track.linkedTo !== undefined) {
+            const sourceTrack = this.tracks.find(t => t.id === track.linkedTo);
+            return sourceTrack ? sourceTrack.notes : [];
+        }
+        return track.notes;
     },
     set notes(newNotes) {
         const track = this.tracks.find(t => t.id === this.activeTrackId);
-        if (track) track.notes = newNotes;
+        if (track && track.linkedTo === null) {
+            track.notes = newNotes;
+        }
     }
 };
 
@@ -108,19 +110,22 @@ export function getSelectedNotes() {
 export function deleteNote(note) {
     if (!note) return;
     const track = STATE.tracks.find(t => t.id === STATE.activeTrackId);
-    if (track) {
+    if (track && track.linkedTo === null) {
         STATE.dyingNotes.push({ ...note, opacity: 1.0, color: track.color });
+        STATE.notes = STATE.notes.filter(n => n.id !== note.id);
+        startFadeOutAnimation();
     }
-    STATE.notes = STATE.notes.filter(n => n.id !== note.id);
-    startFadeOutAnimation();
 }
 
 export function deleteSelectedNotes() {
+    const track = STATE.tracks.find(t => t.id === STATE.activeTrackId);
+    if (!track || track.linkedTo !== null) return; // リンク時は削除不可
+    
     const selected = getSelectedNotes();
     if (selected.length === 0) return;
-    const track = STATE.tracks.find(t => t.id === STATE.activeTrackId);
+    
     selected.forEach(note => {
-        if (track) STATE.dyingNotes.push({ ...note, opacity: 1.0, color: track.color });
+        STATE.dyingNotes.push({ ...note, opacity: 1.0, color: track.color });
     });
     STATE.notes = STATE.notes.filter(n => !n.selected);
     startFadeOutAnimation();
@@ -131,10 +136,7 @@ export function addTrack() {
     
     const usedColors = STATE.tracks.map(t => t.color);
     let newColorObj = TRACK_COLORS_PALETTE.find(c => !usedColors.includes(c.fill));
-    
-    if (!newColorObj) {
-        newColorObj = TRACK_COLORS_PALETTE[Math.floor(Math.random() * TRACK_COLORS_PALETTE.length)];
-    }
+    if (!newColorObj) newColorObj = TRACK_COLORS_PALETTE[Math.floor(Math.random() * TRACK_COLORS_PALETTE.length)];
 
     STATE.tracks.push({
         id: nextId,
@@ -148,23 +150,21 @@ export function addTrack() {
         attack: 0.0001,
         decay: 0.1,
         sustain: 0.75,
-        release: 0.005
+        release: 0.005,
+        linkedTo: null
     });
 }
 
-// 新規: トラックの複製
 export function duplicateTrack(trackId) {
     const sourceTrack = STATE.tracks.find(t => t.id === trackId);
     if (!sourceTrack) return;
     
     const nextId = STATE.tracks.length > 0 ? Math.max(...STATE.tracks.map(t => t.id)) + 1 : 1;
     
-    // ノートのディープコピー（IDは新しく振り直す）
-    const copiedNotes = sourceTrack.notes.map(n => ({
-        ...n,
-        id: STATE.nextNoteId++,
-        selected: false
-    }));
+    let copiedNotes = [];
+    if (sourceTrack.linkedTo === null) {
+        copiedNotes = sourceTrack.notes.map(n => ({ ...n, id: STATE.nextNoteId++, selected: false }));
+    }
 
     const newTrack = {
         id: nextId,
@@ -180,24 +180,66 @@ export function duplicateTrack(trackId) {
         sustain: sourceTrack.sustain,
         release: sourceTrack.release,
         isMuted: sourceTrack.isMuted,
-        isSoloed: false
+        isSoloed: false,
+        linkedTo: sourceTrack.linkedTo // リンク状態も引き継ぐ
     };
 
-    // 複製元トラックのすぐ後ろに挿入
     const index = STATE.tracks.findIndex(t => t.id === trackId);
     STATE.tracks.splice(index + 1, 0, newTrack);
 }
 
-// 新規: トラックの削除
+// 新規: リンクトラックの作成
+export function createLinkedTrack(trackId) {
+    const sourceTrack = STATE.tracks.find(t => t.id === trackId);
+    if (!sourceTrack) return;
+    
+    const actualSourceId = sourceTrack.linkedTo !== null ? sourceTrack.linkedTo : sourceTrack.id;
+    const actualSourceTrack = STATE.tracks.find(t => t.id === actualSourceId);
+    
+    const nextId = STATE.tracks.length > 0 ? Math.max(...STATE.tracks.map(t => t.id)) + 1 : 1;
+
+    const newTrack = {
+        id: nextId,
+        name: `${actualSourceTrack.name} (Link)`,
+        color: sourceTrack.color,
+        borderColor: sourceTrack.borderColor,
+        notes: [], // リンク時は自身のノートを持たない
+        volume: sourceTrack.volume,
+        transpose: sourceTrack.transpose,
+        waveform: sourceTrack.waveform,
+        attack: sourceTrack.attack,
+        decay: sourceTrack.decay,
+        sustain: sourceTrack.sustain,
+        release: sourceTrack.release,
+        isMuted: sourceTrack.isMuted,
+        isSoloed: false,
+        linkedTo: actualSourceId
+    };
+
+    const index = STATE.tracks.findIndex(t => t.id === trackId);
+    STATE.tracks.splice(index + 1, 0, newTrack);
+}
+
 export function deleteTrack(trackId) {
     if (STATE.tracks.length <= 1) {
         alert("Cannot delete the last track.");
         return;
     }
     
+    // 安全対策: 削除対象を親としているリンクトラックがある場合、リンクを解除して独立させる
+    STATE.tracks.forEach(t => {
+        if (t.linkedTo === trackId) {
+            const src = STATE.tracks.find(orig => orig.id === trackId);
+            if (src) {
+                t.notes = src.notes.map(n => ({ ...n, id: STATE.nextNoteId++, selected: false }));
+            }
+            t.linkedTo = null;
+            t.name = t.name.replace(" (Link)", " (Unlinked)");
+        }
+    });
+    
     STATE.tracks = STATE.tracks.filter(t => t.id !== trackId);
     
-    // アクティブトラックが削除された場合、先頭のトラックをアクティブにする
     if (STATE.activeTrackId === trackId) {
         STATE.activeTrackId = STATE.tracks[0].id;
     }
@@ -210,24 +252,16 @@ export function loadParsedMIDI(parsedData, appendMode, overrideBpm) {
         if (bpmInput) bpmInput.value = STATE.bpm;
     }
 
-    if (!appendMode) {
-        STATE.tracks =[]; 
-    }
+    if (!appendMode) STATE.tracks =[]; 
 
     parsedData.tracks.forEach((parsedTrack, index) => {
         const nextId = STATE.tracks.length > 0 ? Math.max(...STATE.tracks.map(t => t.id)) + 1 : 1;
         
         const usedColors = STATE.tracks.map(t => t.color);
         let newColorObj = TRACK_COLORS_PALETTE.find(c => !usedColors.includes(c.fill));
-        
-        if (!newColorObj) {
-            newColorObj = TRACK_COLORS_PALETTE[Math.floor(Math.random() * TRACK_COLORS_PALETTE.length)];
-        }
+        if (!newColorObj) newColorObj = TRACK_COLORS_PALETTE[Math.floor(Math.random() * TRACK_COLORS_PALETTE.length)];
 
-        const newNotes = parsedTrack.notes.map(n => ({
-            ...n,
-            id: STATE.nextNoteId++
-        }));
+        const newNotes = parsedTrack.notes.map(n => ({ ...n, id: STATE.nextNoteId++ }));
 
         STATE.tracks.push({
             id: nextId,
@@ -241,7 +275,8 @@ export function loadParsedMIDI(parsedData, appendMode, overrideBpm) {
             attack: 0.0001,
             decay: 0.1,
             sustain: 0.75,
-            release: 0.005
+            release: 0.005,
+            linkedTo: null
         });
     });
 
