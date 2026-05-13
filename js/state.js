@@ -256,17 +256,22 @@ export function deleteTrack(trackId) {
 }
 
 export function loadParsedMIDI(parsedData, appendMode, overrideBpm) {
-    // ※MIDIロードのパースロジック拡張はフェーズ4にて実装予定のため、ここではプレースホルダーとして残します
     if (overrideBpm && parsedData.bpm) {
         STATE.bpm = parsedData.bpm;
         const bpmInput = document.getElementById('bpm-input');
         if (bpmInput) bpmInput.value = STATE.bpm;
     }
 
-    if (!appendMode) STATE.tracks =[]; 
+    if (!appendMode) STATE.tracks = []; 
+
+    // 元IDと新IDのマッピング用辞書
+    const idMap = new Map();
 
     parsedData.tracks.forEach((parsedTrack, index) => {
         const nextId = STATE.tracks.length > 0 ? Math.max(...STATE.tracks.map(t => t.id)) + 1 : 1;
+        
+        // ロード順（1,2,3...）と新しいアプリ上のIDをマッピング
+        idMap.set(index + 1, nextId);
         
         const usedColors = STATE.tracks.map(t => t.color);
         let newColorObj = TRACK_COLORS_PALETTE.find(c => !usedColors.includes(c.fill));
@@ -281,14 +286,26 @@ export function loadParsedMIDI(parsedData, appendMode, overrideBpm) {
             borderColor: newColorObj.border,
             notes: newNotes,
             volume: 1.0,
-            transpose: 0,
+            transpose: parsedTrack._transpose || 0, // 新規: トランスポーズ値の復元
             waveform: 'sawtooth',
             attack: 0.0001,
             decay: 0.1,
             sustain: 0.75,
             release: 0.005,
-            linkedTo: null
+            linkedTo: null,
+            _tempOriginalLink: parsedTrack._linkedToOriginalId // 後で解決するための退避
         });
+    });
+
+    // リンクIDの解決
+    STATE.tracks.forEach(track => {
+        if (track._tempOriginalLink !== undefined && track._tempOriginalLink !== null) {
+            const mappedId = idMap.get(track._tempOriginalLink);
+            if (mappedId) {
+                track.linkedTo = mappedId;
+            }
+            delete track._tempOriginalLink;
+        }
     });
 
     if (STATE.tracks.length > 0 && (!STATE.activeTrackId || !STATE.tracks.find(t => t.id === STATE.activeTrackId))) {
