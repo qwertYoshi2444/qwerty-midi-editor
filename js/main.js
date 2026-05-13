@@ -9,8 +9,10 @@ let editingColorTrackId = null;
 let pendingMidiData = null; 
 
 const ICON_FOLDER = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;margin-right:4px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`;
-const ICON_SETTINGS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
-const ICON_MENU = `<svg viewBox="0 0 24 24" fill="currentColor" style="width:14px;height:14px;"><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg>`;
+// サイズ変更: 18px
+const ICON_SETTINGS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
+// サイズ変更: 18px
+const ICON_MENU = `<svg viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px;"><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg>`;
 const ICON_DRAG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><line x1="4" y1="9" x2="20" y2="9"></line><line x1="4" y1="15" x2="20" y2="15"></line></svg>`;
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -30,6 +32,40 @@ document.addEventListener('DOMContentLoaded', () => {
             menu.classList.remove('show');
         }
     });
+
+    // 新規: 左パネルのリサイズ処理
+    const resizer = document.getElementById('panel-resizer');
+    const panelContainer = document.getElementById('track-panel-container');
+    let isResizing = false;
+
+    const startResize = (e) => {
+        isResizing = true;
+        document.body.style.cursor = 'col-resize';
+        e.preventDefault();
+    };
+    const doResize = (clientX) => {
+        if (!isResizing) return;
+        let newWidth = clientX;
+        if (newWidth < 150) newWidth = 150;
+        if (newWidth > 500) newWidth = 500;
+        panelContainer.style.width = `${newWidth}px`;
+        resizeCanvas();
+    };
+    const stopResize = () => {
+        if (isResizing) {
+            isResizing = false;
+            document.body.style.cursor = 'default';
+        }
+    };
+
+    resizer.addEventListener('mousedown', startResize);
+    resizer.addEventListener('touchstart', (e) => startResize(e.touches[0]), {passive: false});
+    
+    window.addEventListener('mousemove', (e) => doResize(e.clientX));
+    window.addEventListener('touchmove', (e) => { if(isResizing) doResize(e.touches[0].clientX); }, {passive: true});
+    
+    window.addEventListener('mouseup', stopResize);
+    window.addEventListener('touchend', stopResize);
 
     resizeCanvas();
     setupToolbar();
@@ -276,11 +312,12 @@ function setupTrackPanel() {
         const nameDiv = document.createElement('div');
         nameDiv.className = 'track-name';
         
-        // リンク状態のUI表示
+        // リンクトラックの表示切替
         if (track.linkedTo !== null) {
-            nameDiv.innerHTML = `🔗 ${track.name}`;
-            nameDiv.classList.add('is-linked');
-            nameDiv.title = "Linked Track (Cannot edit notes directly)";
+            itemDiv.classList.add('is-linked');
+            nameDiv.innerHTML = `<span style="margin-right:2px;">🔗</span> ${track.name}`;
+            nameDiv.classList.add('is-linked-name');
+            nameDiv.title = "Double-click to rename (Linked Track)";
         } else {
             nameDiv.textContent = track.name;
             nameDiv.title = "Double-click to rename";
@@ -579,7 +616,6 @@ function showTrackMenu(e, trackId) {
         menu.classList.remove('show');
     };
 
-    // 新規: リンク作成のバインド
     document.getElementById('ctx-menu-link').onclick = (ev) => {
         ev.preventDefault();
         createLinkedTrack(trackId);

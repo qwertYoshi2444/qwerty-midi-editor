@@ -37,7 +37,7 @@ for (let i = 0; i < 8; i++) {
         decay: 0.1,
         sustain: 0.75,
         release: 0.005,
-        linkedTo: null // 新規: リンク先トラックID
+        linkedTo: null
     });
 }
 
@@ -84,7 +84,6 @@ export const STATE = {
     get notes() {
         const track = this.tracks.find(t => t.id === this.activeTrackId);
         if (!track) return [];
-        // アクティブトラックがリンクの場合、リンク元のノートを透過的に返す
         if (track.linkedTo !== null && track.linkedTo !== undefined) {
             const sourceTrack = this.tracks.find(t => t.id === track.linkedTo);
             return sourceTrack ? sourceTrack.notes : [];
@@ -119,7 +118,7 @@ export function deleteNote(note) {
 
 export function deleteSelectedNotes() {
     const track = STATE.tracks.find(t => t.id === STATE.activeTrackId);
-    if (!track || track.linkedTo !== null) return; // リンク時は削除不可
+    if (!track || track.linkedTo !== null) return; 
     
     const selected = getSelectedNotes();
     if (selected.length === 0) return;
@@ -181,14 +180,14 @@ export function duplicateTrack(trackId) {
         release: sourceTrack.release,
         isMuted: sourceTrack.isMuted,
         isSoloed: false,
-        linkedTo: sourceTrack.linkedTo // リンク状態も引き継ぐ
+        linkedTo: sourceTrack.linkedTo
     };
 
     const index = STATE.tracks.findIndex(t => t.id === trackId);
     STATE.tracks.splice(index + 1, 0, newTrack);
 }
 
-// 新規: リンクトラックの作成
+// 修正: リンクトラック名の連番生成ロジック
 export function createLinkedTrack(trackId) {
     const sourceTrack = STATE.tracks.find(t => t.id === trackId);
     if (!sourceTrack) return;
@@ -198,12 +197,25 @@ export function createLinkedTrack(trackId) {
     
     const nextId = STATE.tracks.length > 0 ? Math.max(...STATE.tracks.map(t => t.id)) + 1 : 1;
 
+    // "Track Name", "Track Name 2", "Track Name 3"... のように連番を振る
+    const baseName = actualSourceTrack.name.replace(/\s\d+$/, '');
+    let maxNum = 1;
+    STATE.tracks.forEach(t => {
+        if (t.name === baseName) {
+            maxNum = Math.max(maxNum, 1);
+        } else if (t.name.startsWith(baseName + " ")) {
+            const num = parseInt(t.name.replace(baseName + " ", ""), 10);
+            if (!isNaN(num)) maxNum = Math.max(maxNum, num);
+        }
+    });
+    const newName = `${baseName} ${maxNum + 1}`;
+
     const newTrack = {
         id: nextId,
-        name: `${actualSourceTrack.name} (Link)`,
+        name: newName,
         color: sourceTrack.color,
         borderColor: sourceTrack.borderColor,
-        notes: [], // リンク時は自身のノートを持たない
+        notes: [], 
         volume: sourceTrack.volume,
         transpose: sourceTrack.transpose,
         waveform: sourceTrack.waveform,
@@ -226,7 +238,6 @@ export function deleteTrack(trackId) {
         return;
     }
     
-    // 安全対策: 削除対象を親としているリンクトラックがある場合、リンクを解除して独立させる
     STATE.tracks.forEach(t => {
         if (t.linkedTo === trackId) {
             const src = STATE.tracks.find(orig => orig.id === trackId);
@@ -234,7 +245,6 @@ export function deleteTrack(trackId) {
                 t.notes = src.notes.map(n => ({ ...n, id: STATE.nextNoteId++, selected: false }));
             }
             t.linkedTo = null;
-            t.name = t.name.replace(" (Link)", " (Unlinked)");
         }
     });
     
@@ -246,6 +256,7 @@ export function deleteTrack(trackId) {
 }
 
 export function loadParsedMIDI(parsedData, appendMode, overrideBpm) {
+    // ※MIDIロードのパースロジック拡張はフェーズ4にて実装予定のため、ここではプレースホルダーとして残します
     if (overrideBpm && parsedData.bpm) {
         STATE.bpm = parsedData.bpm;
         const bpmInput = document.getElementById('bpm-input');
