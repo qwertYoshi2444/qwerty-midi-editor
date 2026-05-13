@@ -7,6 +7,13 @@ export function exportToMIDI() {
         return;
     }
 
+    // リンク情報を含めるかどうかの確認
+    const hasLinkedTracks = STATE.tracks.some(t => t.linkedTo !== null);
+    let embedLinkData = false;
+    if (hasLinkedTracks) {
+        embedLinkData = confirm("Export link configuration data in track names?\nThis allows link relationships to be restored when loading the MIDI file later.");
+    }
+
     function toVLQ(value) {
         let buffer =[value & 0x7F];
         while ((value >>= 7) > 0) {
@@ -41,7 +48,6 @@ export function exportToMIDI() {
     trackChunks.push(conductorData);
 
     STATE.tracks.forEach((track, trackIndex) => {
-        // リンクトラックの場合、リンク元のノートを取得
         let trackNotes = track.notes;
         if (track.linkedTo !== null) {
             const src = STATE.tracks.find(t => t.id === track.linkedTo);
@@ -55,7 +61,16 @@ export function exportToMIDI() {
         const channel = trackIndex % 16; 
 
         trackData.push(0x00, 0xFF, 0x03);
-        const nameBytes = stringToBytes(track.name);
+        
+        // リンク情報を埋め込む場合のトラック名生成
+        let exportName = track.name;
+        if (embedLinkData && track.linkedTo !== null) {
+            exportName = `[L:${track.linkedTo},T:${track.transpose || 0}] ${track.name}`;
+        }
+        // 通常のトラックでも、リンク元として参照される可能性があるため自身のIDを埋め込むのが確実ですが、
+        // 今回はシンプルにロード順にID(1~)を振ってマッチングさせる仕様とします。
+        
+        const nameBytes = stringToBytes(exportName);
         trackData.push(...toVLQ(nameBytes.length), ...nameBytes);
 
         let events =[];
@@ -153,8 +168,9 @@ export function parseMIDI(arrayBuffer) {
     offset = 14; 
 
     let resultBpm = 120;
-    const resultTracks =[];
+    let rawTracks = [];
 
+    // パース処理の第一段階: トラックとタグ情報を抽出
     for (let i = 0; i < trackCount; i++) {
         if (offset >= data.byteLength) break;
 
@@ -169,7 +185,7 @@ export function parseMIDI(arrayBuffer) {
 
         let currentTick = 0;
         let runningStatus = 0;
-        let parsedTrackName = '';
+        let rawTrackName = '';
         const activeNotes = {}; 
         const trackNotes =[];
 
@@ -212,7 +228,7 @@ export function parseMIDI(arrayBuffer) {
                         const microsec = (t1 << 16) | (t2 << 8) | t3;
                         resultBpm = Math.round(60000000 / microsec);
                     } else if (metaType === 0x03) { 
-                        parsedTrackName = readString(metaLen);
+                        rawTrackName = readString(metaLen);
                     } else {
                         offset += metaLen;
                     }
@@ -232,12 +248,95 @@ export function parseMIDI(arrayBuffer) {
             selected: false
         }));
 
-        if (scaledNotes.length > 0 || parsedTrackName !== '') {
-            resultTracks.push({ name: parsedTrackName, notes: scaledNotes });
+        if (scaledNotes.length > 0 || rawTrackName !== '') {
+            rawTracks.push({ rawName: rawTrackName, notes: scaledNotes, idIndex: rawTracks.length + 1 });
         }
-        
         offset = endOffset; 
     }
 
-    return { bpm: resultBpm, tracks: resultTracks };
+    // パース処理の第二段階: タグの解析と不整合チェック
+    const processedTracks = [];
+    const linkRegex = /^\[L:(\d+),T:([+-]?\d+)\]\s*(.*)$/;
+
+    rawTracks.forEach((rt) => {
+        let finalName = rt.rawName;
+        let linkedToId = null;
+        let transposeVal = 0;
+        let notesToKeep = rt.notes;
+
+        const match = rt.rawName.match(linkRegex);
+        
+        if (match) {
+            const targetSrcId = parseInt(match[1], 10);
+            const tVal = parseInt(match[2], 10);
+            const cleanName = match[3];
+
+            // ソースとなるトラックが既に読み込まれているか確認
+            const sourceTrack = processedTracks.find(pt => pt.originalId === targetSrcId);
+            
+            if (sourceTrack) {
+                // 不整合チェック
+                const srcNotes = sourceTrack.notes;
+                const loadedNotes = rt.notes;
+                let isMatch = srcNotes.length === loadedNotes.length;
+                
+                if (isMatch) {
+                    // グローバルトランスポーズ(エクスポート時の状態)の逆算は困難なため、
+                    // 相対的な形（ロードされたノート - T値 === ソースのノート）で簡易検証する
+                    for (let i = 0; i < srcNotes.length; i++) {
+                        const sN = srcNotes[i];
+                        const lN = loadedNotes.find(n => Math.abs(n.tick - sN.tick) < 2); // Tickの許容誤差
+                        if (!lN || lN.pitch - tVal !== sN.pitch || Math.abs(lN.duration - sN.duration) > 2) {
+                            isMatch = false; break;
+                        }
+                    }
+                }
+
+                if (!isMatch) {
+                    const keepLink = confirm(`Track '${cleanName}' is marked as a link, but its note data differs from the source track.\n\n[OK] Keep as linked track (override differing notes)\n[Cancel] Import as an independent track`);
+                    if (keepLink) {
+                        linkedToId = targetSrcId; // ロード後のID体系に合わせたマッピング
+                        transposeVal = tVal;
+                        finalName = cleanName;
+                        notesToKeep = []; // リンクなので自身のノートは破棄
+                    } else {
+                        finalName = cleanName + " (Independent)";
+                        // 独立させるためリンクトラック指定は解除
+                    }
+                } else {
+                    // 一致していれば正常にリンクとして登録
+                    linkedToId = targetSrcId;
+                    transposeVal = tVal;
+                    finalName = cleanName;
+                    notesToKeep = []; 
+                }
+            } else {
+                // ソースが見つからない場合は独立トラックとする
+                finalName = cleanName;
+            }
+        }
+
+        processedTracks.push({
+            name: finalName,
+            notes: notesToKeep,
+            linkedToId: linkedToId,
+            transpose: transposeVal,
+            originalId: rt.idIndex // ソース参照用
+        });
+    });
+
+    // 最終的な STATE 仕様へのマッピング (loadParsedMIDI() への引数として適合させる)
+    const finalResultTracks = processedTracks.map(pt => ({
+        name: pt.name,
+        notes: pt.notes,
+        _linkedToOriginalId: pt.linkedToId, // ロード側で紐付け解決するための一時プロパティ
+        _transpose: pt.transpose
+    }));
+
+    // 注意: loadParsedMIDI() にてIDが新しく振り直されるため、
+    // 実際に STATE.tracks にリンク関係を構築するためのフックを呼び出し元（loadParsedMIDI内）に追記する必要があります。
+    // 今回の構成では、parseMIDI自体は純粋なオブジェクトの配列を返すだけに留め、
+    // 次に提示する state.js の更新版でこの一時プロパティを解決させます。
+
+    return { bpm: resultBpm, tracks: finalResultTracks };
 }
