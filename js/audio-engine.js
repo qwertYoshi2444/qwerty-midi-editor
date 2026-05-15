@@ -1,7 +1,6 @@
 import { STATE } from './state.js';
 
 let audioCtx = null;
-let masterGain = null; 
 
 let previewOsc = null;
 let previewGain = null;
@@ -10,48 +9,16 @@ let currentPreviewPitch = -1;
 const scheduledNoteIds = new Set(); 
 let activeNodes =[]; 
 
-// 新規: ハイライト用のトラッキングデータ
-let scheduledNodes = [];
-let previewState = { pitch: -1, color: null, isPlaying: false };
-
+// 追加: リファレンス音声用のノード
 let refSource = null;
 let refGain = null;
-
-let pulse25Wave = null;
-let pulse12Wave = null;
 
 export function initAudio() {
     if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        
-        masterGain = audioCtx.createGain();
-        masterGain.connect(audioCtx.destination);
-        updateMasterVolume();
-
-        pulse25Wave = createPulseWave(0.25);
-        pulse12Wave = createPulseWave(0.125);
     }
     if (audioCtx.state === 'suspended') {
         audioCtx.resume();
-    }
-}
-
-function createPulseWave(duty) {
-    const terms = 30; 
-    const real = new Float32Array(terms + 1);
-    const imag = new Float32Array(terms + 1);
-    
-    real[0] = duty;
-    for (let i = 1; i <= terms; i++) {
-        real[i] = (2 / (i * Math.PI)) * Math.sin(i * Math.PI * duty);
-        imag[i] = 0; 
-    }
-    return audioCtx.createPeriodicWave(real, imag, { disableNormalization: false });
-}
-
-export function updateMasterVolume() {
-    if (masterGain && audioCtx) {
-        masterGain.gain.setTargetAtTime(STATE.masterVolume, audioCtx.currentTime, 0.01);
     }
 }
 
@@ -59,6 +26,7 @@ function pitchToFreq(pitch) {
     return 440 * Math.pow(2, (pitch - 69) / 12);
 }
 
+// 変更: Solo時のミュートロジックにリファレンストラックを考慮
 export function isTrackAudible(track) {
     if (!track) return false;
     if (track.isMuted) return false;
@@ -66,11 +34,14 @@ export function isTrackAudible(track) {
     const isAnyInstSoloed = STATE.tracks.some(t => t.isSoloed);
     const isRefSoloed = STATE.referenceTrack.isSoloed;
     
+    // いずれかのトラックがソロ化されている場合、自身のソロ状態のみで判定
     if (isAnyInstSoloed || isRefSoloed) {
         return track.isSoloed;
     }
     return true;
 }
+
+// --- 追加: リファレンス音声トラック機能 ---
 
 export async function loadReferenceAudio(file) {
     initAudio();
@@ -90,14 +61,17 @@ export function playReferenceAudio(startTick) {
 
     refGain = audioCtx.createGain();
     
+    // 接続
     refSource.connect(refGain);
-    refGain.connect(masterGain);
+    refGain.connect(audioCtx.destination);
     
-    updateReferenceVolume(); 
+    updateReferenceVolume(); // Solo/Mute・Volumeの適用
 
+    // Tickをオフセット秒数に変換して再生
     const secondsPerTick = 60 / (STATE.bpm * STATE.ppq);
     const offsetSeconds = startTick * secondsPerTick;
 
+    // バッファの長さを超えていなければ再生
     if (offsetSeconds < refSource.buffer.duration) {
         refSource.start(0, offsetSeconds);
     }
@@ -115,6 +89,7 @@ export function stopReferenceAudio() {
     }
 }
 
+// Mute/Soloおよび音量スライダの変更時にリアルタイムでゲインを適用
 export function updateReferenceVolume() {
     if (!refGain || !audioCtx) return;
     
@@ -124,12 +99,16 @@ export function updateReferenceVolume() {
 
     let audible = true;
     if (isMuted) audible = false;
+    // インストゥルメントがソロ化されており、自身がソロ化されていない場合はミュート
     if (isAnyInstSoloed && !isRefSoloed) audible = false;
 
     const targetVol = audible ? STATE.referenceTrack.volume : 0;
+    
+    // ノイズを避けるための微小フェード
     refGain.gain.setTargetAtTime(targetVol, audioCtx.currentTime, 0.01);
 }
 
+// --- プレビュー発音 ---
 export function playPreview(pitch, trackId) {
     if (!audioCtx) return;
     const track = STATE.tracks.find(t => t.id === trackId);
@@ -139,23 +118,14 @@ export function playPreview(pitch, trackId) {
     stopPreview(true);
 
     currentPreviewPitch = pitch;
-    previewState = { pitch: pitch, color: track.color, isPlaying: true }; // トラッキング
     
-    const trackTranspose = track.transpose || 0;
-    const actualPitch = Math.max(0, Math.min(127, pitch + STATE.globalTranspose + trackTranspose));
+    const actualPitch = Math.max(0, Math.min(127, pitch + STATE.globalTranspose));
     const freq = pitchToFreq(actualPitch);
 
     previewOsc = audioCtx.createOscillator();
     previewGain = audioCtx.createGain();
 
-    if (track.waveform === 'pulse25' && pulse25Wave) {
-        previewOsc.setPeriodicWave(pulse25Wave);
-    } else if (track.waveform === 'pulse12' && pulse12Wave) {
-        previewOsc.setPeriodicWave(pulse12Wave);
-    } else {
-        previewOsc.type = track.waveform;
-    }
-
+    previewOsc.type = track.waveform;
     previewOsc.frequency.value = freq;
 
     const t = audioCtx.currentTime;
@@ -168,13 +138,11 @@ export function playPreview(pitch, trackId) {
     previewGain.gain.setTargetAtTime(sustainLevel, t + track.attack, track.decay);
 
     previewOsc.connect(previewGain);
-    previewGain.connect(masterGain);
+    previewGain.connect(audioCtx.destination);
     previewOsc.start();
 }
 
 export function stopPreview(immediate = false) {
-    previewState.isPlaying = false; // トラッキングオフ
-    
     if (!previewOsc || !previewGain || !audioCtx) return;
 
     const t = audioCtx.currentTime;
@@ -196,9 +164,10 @@ export function stopPreview(immediate = false) {
     currentPreviewPitch = -1;
 }
 
+// --- 再生シーケンサー（スケジューリング） ---
+
 export function startScheduler() {
     scheduledNoteIds.clear();
-    scheduledNodes = [];
     stopAllSounds();
 }
 
@@ -217,7 +186,6 @@ export function stopAllSounds() {
     
     activeNodes =[];
     scheduledNoteIds.clear();
-    scheduledNodes = [];
 }
 
 export function scheduleNotes(currentTick, lookaheadTime, secondsPerTick) {
@@ -229,22 +197,14 @@ export function scheduleNotes(currentTick, lookaheadTime, secondsPerTick) {
     STATE.tracks.forEach(track => {
         if (!isTrackAudible(track)) return;
         
-        let notesToPlay = track.notes;
-        if (track.linkedTo !== null) {
-            const srcTrack = STATE.tracks.find(t => t.id === track.linkedTo);
-            if (srcTrack) notesToPlay = srcTrack.notes;
-        }
-        
-        notesToPlay.forEach(note => {
-            const compoundId = `${track.id}_${note.id}`;
-            
-            if (note.tick >= currentTick && note.tick < endTick && !note.muted && !scheduledNoteIds.has(compoundId)) {
+        track.notes.forEach(note => {
+            if (note.tick >= currentTick && note.tick < endTick && !note.muted && !scheduledNoteIds.has(note.id)) {
                 const timeOffset = (note.tick - currentTick) * secondsPerTick;
                 const startTime = audioCtx.currentTime + timeOffset;
                 const durationTime = note.duration * secondsPerTick;
                 
                 scheduleSingleNote(note, track, startTime, durationTime);
-                scheduledNoteIds.add(compoundId);
+                scheduledNoteIds.add(note.id);
             }
         });
     });
@@ -254,16 +214,8 @@ function scheduleSingleNote(note, track, startTime, durationTime) {
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     
-    if (track.waveform === 'pulse25' && pulse25Wave) {
-        osc.setPeriodicWave(pulse25Wave);
-    } else if (track.waveform === 'pulse12' && pulse12Wave) {
-        osc.setPeriodicWave(pulse12Wave);
-    } else {
-        osc.type = track.waveform;
-    }
-    
-    const trackTranspose = track.transpose || 0;
-    const actualPitch = Math.max(0, Math.min(127, note.pitch + STATE.globalTranspose + trackTranspose));
+    osc.type = track.waveform;
+    const actualPitch = Math.max(0, Math.min(127, note.pitch + STATE.globalTranspose));
     osc.frequency.value = pitchToFreq(actualPitch);
     
     const trackVol = track.volume !== undefined ? track.volume : 1.0;
@@ -279,7 +231,7 @@ function scheduleSingleNote(note, track, startTime, durationTime) {
     gain.gain.exponentialRampToValueAtTime(0.0001, releaseStartTime + track.release);
     
     osc.connect(gain);
-    gain.connect(masterGain); 
+    gain.connect(audioCtx.destination);
     
     osc.start(startTime);
     osc.stop(releaseStartTime + track.release);
@@ -287,35 +239,7 @@ function scheduleSingleNote(note, track, startTime, durationTime) {
     const nodeObj = { osc, gain };
     activeNodes.push(nodeObj);
     
-    const nodeInfo = {
-        pitch: note.pitch, 
-        color: track.color,
-        startTime: startTime,
-        endTime: releaseStartTime + track.release
-    };
-    scheduledNodes.push(nodeInfo);
-    
     osc.onended = () => {
         activeNodes = activeNodes.filter(n => n !== nodeObj);
-        scheduledNodes = scheduledNodes.filter(n => n !== nodeInfo);
     };
-}
-
-// 新規: レンダラー向けに現在発音中のノート情報を返す関数
-export function getActiveNotes() {
-    if (!audioCtx) return [];
-    const t = audioCtx.currentTime;
-    const active = [];
-    
-    scheduledNodes.forEach(node => {
-        if (t >= node.startTime && t <= node.endTime) {
-            active.push({ pitch: node.pitch, color: node.color });
-        }
-    });
-
-    if (previewState.isPlaying && previewState.pitch !== -1) {
-        active.push({ pitch: previewState.pitch, color: previewState.color });
-    }
-
-    return active;
 }
