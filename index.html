@@ -201,7 +201,7 @@
         
         #synth-modal { width: 340px; }
         #color-picker-modal { width: 240px; padding: 15px; }
-        #midi-load-modal { width: 280px; }
+        #midi-load-modal { width: 320px; }
         
         .modal-title { font-size: 16px; font-weight: bold; margin-bottom: 15px; color: #ff6600; border-bottom: 1px solid #555; padding-bottom: 5px; }
         .modal-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 13px; }
@@ -226,6 +226,13 @@
         .color-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; margin-bottom: 10px; }
         .color-cell { width: 20px; height: 20px; border-radius: 50%; cursor: pointer; border: 1px solid #111; }
         .color-cell:hover { transform: scale(1.2); box-shadow: 0 0 5px rgba(255,255,255,0.8); }
+
+        #midi-mismatch-warning {
+            display: none; background-color: #3a2222; border: 1px solid #ff3333; 
+            padding: 10px; border-radius: 4px; margin-bottom: 15px; font-size: 12px;
+        }
+        #midi-mismatch-warning label { cursor: pointer; display: flex; align-items: center; gap: 6px; margin-bottom: 6px; color: #eee; }
+        #midi-mismatch-warning label:last-child { margin-bottom: 0; }
     </style>
 </head>
 <body>
@@ -400,7 +407,17 @@
 
 <div class="modal-overlay" id="midi-load-modal">
     <div class="modal-title" style="font-size: 15px;">Load MIDI File</div>
-    <div style="font-size: 12px; margin-bottom: 10px; color: #aaa;" id="midi-info-text">Parsing file...</div>
+    
+    <div style="font-size: 13px; font-weight: bold; margin-bottom: 4px; color: #fff;" id="midi-info-title">Parsing file...</div>
+    <div style="font-size: 12px; margin-bottom: 15px; color: #aaa;" id="midi-info-text"></div>
+    
+    <div id="midi-mismatch-warning">
+        <div style="color: #ff6666; font-weight: bold; margin-bottom: 6px;">⚠️ Mismatched Link Data Detected</div>
+        <div class="mismatch-count-msg" style="margin-bottom: 8px;"></div>
+        <label><input type="radio" name="mismatch-action" value="keep" checked> Force Keep Links (Override notes)</label>
+        <label><input type="radio" name="mismatch-action" value="independent"> Import as Independent Tracks</label>
+    </div>
+
     <div class="modal-row">
         <label>Tracks:</label>
         <select id="midi-load-track-mode">
