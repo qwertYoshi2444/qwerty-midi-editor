@@ -119,26 +119,31 @@ function renderGrid() {
     const snapTickVal = STATE.ppq / 4; 
     let currentTick = Math.floor(STATE.scrollTick / snapTickVal) * snapTickVal;
     
-    ctxGrid.beginPath();
     while (currentTick <= xToTick(w)) {
         const x = tickToX(currentTick);
-        if (currentTick % (STATE.ppq * 4) === 0) ctxGrid.strokeStyle = '#555';
-        else if (currentTick % STATE.ppq === 0) ctxGrid.strokeStyle = '#3a3a3a';
-        else ctxGrid.strokeStyle = '#2a2a2a';
-        
         if (x >= 0 && x <= w) { 
+            ctxGrid.beginPath();
+            if (currentTick % (STATE.ppq * 4) === 0) {
+                ctxGrid.strokeStyle = '#666';
+                ctxGrid.lineWidth = 2;
+            } else if (currentTick % STATE.ppq === 0) {
+                ctxGrid.strokeStyle = '#3a3a3a';
+                ctxGrid.lineWidth = 1;
+            } else {
+                ctxGrid.strokeStyle = '#2a2a2a';
+                ctxGrid.lineWidth = 1;
+            }
             ctxGrid.moveTo(x, 0); 
             ctxGrid.lineTo(x, h); 
+            ctxGrid.stroke();
         }
         currentTick += snapTickVal;
     }
-    ctxGrid.stroke();
 }
 
 function renderGhostNotes() {
     const heightPadding = 2;
     STATE.tracks.filter(t => t.id !== STATE.activeTrackId).forEach(track => {
-        // リンクトラックのゴーストは表示しない（実体が別にあるため）
         if (track.linkedTo !== null) return;
         
         track.notes.forEach(note => {
@@ -178,7 +183,6 @@ function renderNotes() {
         let fillColor = activeTrack.color;
         let strokeColor = activeTrack.borderColor;
         
-        // リンクトラックの場合は目立つグレーで固定描画
         if (isLinked) {
             fillColor = note.muted ? '#666666' : '#999999';
             strokeColor = '#555555';
@@ -205,7 +209,6 @@ function renderNotes() {
         ctxGrid.fillStyle = note.muted ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.3)'; 
         ctxGrid.fillRect(x + 2, y + heightPadding + (h/2) - 1, w - 4, 2);
 
-        // リンクトラックの場合、斜線を引いて編集不可であることを示す
         if (isLinked && w > 10) {
             ctxGrid.strokeStyle = 'rgba(0, 0, 0, 0.3)';
             ctxGrid.beginPath();

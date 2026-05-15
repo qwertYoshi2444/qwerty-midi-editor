@@ -9,9 +9,7 @@ let editingColorTrackId = null;
 let pendingMidiData = null; 
 
 const ICON_FOLDER = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;margin-right:4px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`;
-// サイズ変更: 18px
 const ICON_SETTINGS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
-// サイズ変更: 18px
 const ICON_MENU = `<svg viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px;"><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg>`;
 const ICON_DRAG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><line x1="4" y1="9" x2="20" y2="9"></line><line x1="4" y1="15" x2="20" y2="15"></line></svg>`;
 
@@ -33,13 +31,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 新規: 左パネルのリサイズ処理
     const resizer = document.getElementById('panel-resizer');
     const panelContainer = document.getElementById('track-panel-container');
     let isResizing = false;
 
     const startResize = (e) => {
         isResizing = true;
+        panelContainer.classList.add('no-transition'); 
         document.body.style.cursor = 'col-resize';
         e.preventDefault();
     };
@@ -54,6 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const stopResize = () => {
         if (isResizing) {
             isResizing = false;
+            panelContainer.classList.remove('no-transition'); 
             document.body.style.cursor = 'default';
         }
     };
@@ -149,7 +148,8 @@ function setupToolbar() {
     });
 
     const menuLoad = document.getElementById('menu-load-midi');
-    const menuExport = document.getElementById('menu-export-midi');
+    const menuExportLinks = document.getElementById('menu-export-midi-links');
+    const menuExportStd = document.getElementById('menu-export-midi-standard');
     const hiddenInput = document.getElementById('hidden-midi-input');
     
     if (menuLoad && hiddenInput) {
@@ -159,10 +159,17 @@ function setupToolbar() {
         });
     }
 
-    if (menuExport) {
-        menuExport.addEventListener('click', (e) => {
+    if (menuExportLinks) {
+        menuExportLinks.addEventListener('click', (e) => {
             e.preventDefault();
-            exportToMIDI();
+            exportToMIDI(true); 
+        });
+    }
+    
+    if (menuExportStd) {
+        menuExportStd.addEventListener('click', (e) => {
+            e.preventDefault();
+            exportToMIDI(false); 
         });
     }
 
@@ -312,14 +319,20 @@ function setupTrackPanel() {
         const nameDiv = document.createElement('div');
         nameDiv.className = 'track-name';
         
-        // リンクトラックの表示切替
+        let transposeBadge = '';
+        if (track.transpose) {
+            const sign = track.transpose > 0 ? '+' : '';
+            transposeBadge = `<span class="transpose-badge">[${sign}${track.transpose}]</span>`;
+        }
+        
         if (track.linkedTo !== null) {
             itemDiv.classList.add('is-linked');
-            nameDiv.innerHTML = `<span style="margin-right:2px;">🔗</span> ${track.name}`;
-            nameDiv.classList.add('is-linked-name');
+            const sourceTrack = STATE.tracks.find(t => t.id === track.linkedTo);
+            const sourceName = sourceTrack ? sourceTrack.name : 'Unknown';
+            nameDiv.innerHTML = `${track.name} ${transposeBadge}<br><span style="font-size: 9px; color: #88ccff; font-weight: normal;">↪ Source: ${sourceName}</span>`;
             nameDiv.title = "Double-click to rename (Linked Track)";
         } else {
-            nameDiv.textContent = track.name;
+            nameDiv.innerHTML = `${track.name} ${transposeBadge}`;
             nameDiv.title = "Double-click to rename";
         }
         
@@ -608,6 +621,14 @@ function showTrackMenu(e, trackId) {
     menu.style.left = `${rect.left - 120}px`; 
     menu.classList.add('show');
 
+    const track = STATE.tracks.find(t => t.id === trackId);
+    const linkMenuBtn = document.getElementById('ctx-menu-link');
+    if (track && track.linkedTo !== null) {
+        linkMenuBtn.style.display = 'none';
+    } else {
+        linkMenuBtn.style.display = 'block';
+    }
+
     document.getElementById('ctx-menu-duplicate').onclick = (ev) => {
         ev.preventDefault();
         duplicateTrack(trackId);
@@ -690,6 +711,7 @@ function setupSynthModal() {
             e.target.value = val;
             const track = STATE.tracks.find(t => t.id === editingTrackId);
             track.transpose = val;
+            setupTrackPanel(); 
         }
     });
 
