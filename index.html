@@ -88,10 +88,11 @@
             display: flex; flex-direction: column; 
             overflow: hidden; flex-shrink: 0;
             position: relative; 
+            transition: width 0.3s ease, min-width 0.3s ease;
         }
         #track-panel-container.closed { width: 0px !important; min-width: 0; border-right: none; }
+        #track-panel-container.no-transition { transition: none; }
         
-        /* 新規: パネルリサイザー */
         #panel-resizer {
             position: absolute; top: 0; right: 0; width: 6px; height: 100%;
             cursor: col-resize; z-index: 10;
@@ -126,7 +127,6 @@
         .track-item:hover { background-color: #3b4043; }
         .track-item.active { background-color: #4b5155; }
         
-        /* 新規: リンクトラックの階層・線表示 */
         .track-item.is-linked {
             padding-left: 28px;
             background-color: #26292a;
@@ -153,8 +153,13 @@
         .track-color-indicator { width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; border: 1px solid #000; flex-shrink: 0; cursor: pointer; }
         .track-name { flex-grow: 1; font-size: 12px; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: text; }
         
-        /* リンクトラック名の文字色 */
         .track-name.is-linked-name { color: #88ccff; font-weight: normal; }
+
+        .transpose-badge {
+            font-size: 9px; background-color: #555; color: #fff; 
+            padding: 2px 4px; border-radius: 3px; margin-left: 6px; 
+            font-weight: bold; vertical-align: middle;
+        }
 
         .track-controls { display: flex; gap: 4px; }
         .tc-btn { 
@@ -310,7 +315,8 @@
             </button>
             <div class="dropdown-content">
                 <a href="#" id="menu-load-midi">Load MIDI...</a>
-                <a href="#" id="menu-export-midi">Export MIDI...</a>
+                <a href="#" id="menu-export-midi-links">Export MIDI (Include Links)</a>
+                <a href="#" id="menu-export-midi-standard">Export MIDI (Standard)</a>
             </div>
         </div>
         <input type="file" id="hidden-midi-input" accept=".mid,.midi" style="display: none;">
@@ -318,7 +324,7 @@
     
     <div id="editor-area">
         <div id="track-panel-container">
-            <div id="panel-resizer"></div> <!-- ドラッグハンドル -->
+            <div id="panel-resizer"></div>
             <div id="track-panel-header">TRACKS</div>
             <div id="ref-track-container"></div>
             <div id="track-list"></div>
