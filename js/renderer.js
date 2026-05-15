@@ -1,5 +1,6 @@
 import { STATE } from './state.js';
 import { tickToX, xToTick, pitchToY, isBlackKey, getNoteName } from './utils.js';
+import { getActiveNotes } from './audio-engine.js'; // 追加: ハイライト用情報の取得
 
 let ctxGrid, ctxKeyboard, ctxTimeline;
 let canvasGrid, canvasKeyboard, canvasTimeline;
@@ -287,11 +288,27 @@ function renderKeyboard() {
     const topPitch = STATE.scrollPitch + 1;
     const bottomPitch = STATE.scrollPitch - (h / STATE.zoomY) - 1;
 
+    // 現在発音中のノートを取得（重複するピッチには最後に見つかった色を適用）
+    const activeNotes = getActiveNotes();
+    const playingPitches = {};
+    activeNotes.forEach(note => {
+        playingPitches[note.pitch] = note.color;
+    });
+
     for (let pitch = Math.floor(topPitch); pitch >= Math.floor(bottomPitch); pitch--) {
         if (pitch < 0 || pitch > 127) continue;
         const y = pitchToY(pitch);
+        
         ctxKeyboard.fillStyle = isBlackKey(pitch) ? '#1e1e1e' : '#e0e0e0';
         ctxKeyboard.fillRect(0, y, w, STATE.zoomY);
+
+        // 発音中のハイライト描画
+        if (playingPitches[pitch]) {
+            ctxKeyboard.fillStyle = playingPitches[pitch];
+            ctxKeyboard.globalAlpha = 0.5; // 半透明で重ねる
+            ctxKeyboard.fillRect(0, y, w, STATE.zoomY);
+            ctxKeyboard.globalAlpha = 1.0;
+        }
         
         ctxKeyboard.strokeStyle = '#000'; 
         ctxKeyboard.strokeRect(0, y, w, STATE.zoomY);
