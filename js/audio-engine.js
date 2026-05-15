@@ -10,6 +10,10 @@ let currentPreviewPitch = -1;
 const scheduledNoteIds = new Set(); 
 let activeNodes =[]; 
 
+// 新規: ハイライト用のトラッキングデータ
+let scheduledNodes = [];
+let previewState = { pitch: -1, color: null, isPlaying: false };
+
 let refSource = null;
 let refGain = null;
 
@@ -135,6 +139,7 @@ export function playPreview(pitch, trackId) {
     stopPreview(true);
 
     currentPreviewPitch = pitch;
+    previewState = { pitch: pitch, color: track.color, isPlaying: true }; // トラッキング
     
     const trackTranspose = track.transpose || 0;
     const actualPitch = Math.max(0, Math.min(127, pitch + STATE.globalTranspose + trackTranspose));
@@ -168,6 +173,8 @@ export function playPreview(pitch, trackId) {
 }
 
 export function stopPreview(immediate = false) {
+    previewState.isPlaying = false; // トラッキングオフ
+    
     if (!previewOsc || !previewGain || !audioCtx) return;
 
     const t = audioCtx.currentTime;
@@ -191,6 +198,7 @@ export function stopPreview(immediate = false) {
 
 export function startScheduler() {
     scheduledNoteIds.clear();
+    scheduledNodes = [];
     stopAllSounds();
 }
 
@@ -209,6 +217,7 @@ export function stopAllSounds() {
     
     activeNodes =[];
     scheduledNoteIds.clear();
+    scheduledNodes = [];
 }
 
 export function scheduleNotes(currentTick, lookaheadTime, secondsPerTick) {
@@ -220,7 +229,6 @@ export function scheduleNotes(currentTick, lookaheadTime, secondsPerTick) {
     STATE.tracks.forEach(track => {
         if (!isTrackAudible(track)) return;
         
-        // リンクトラックの場合、リンク元のノート群を参照する
         let notesToPlay = track.notes;
         if (track.linkedTo !== null) {
             const srcTrack = STATE.tracks.find(t => t.id === track.linkedTo);
@@ -228,7 +236,6 @@ export function scheduleNotes(currentTick, lookaheadTime, secondsPerTick) {
         }
         
         notesToPlay.forEach(note => {
-            // トラックIDを含めた一意の複合キーでスケジューリング状態を管理（リンク元と重複して発音させるため）
             const compoundId = `${track.id}_${note.id}`;
             
             if (note.tick >= currentTick && note.tick < endTick && !note.muted && !scheduledNoteIds.has(compoundId)) {
@@ -280,7 +287,35 @@ function scheduleSingleNote(note, track, startTime, durationTime) {
     const nodeObj = { osc, gain };
     activeNodes.push(nodeObj);
     
+    const nodeInfo = {
+        pitch: note.pitch, 
+        color: track.color,
+        startTime: startTime,
+        endTime: releaseStartTime + track.release
+    };
+    scheduledNodes.push(nodeInfo);
+    
     osc.onended = () => {
         activeNodes = activeNodes.filter(n => n !== nodeObj);
+        scheduledNodes = scheduledNodes.filter(n => n !== nodeInfo);
     };
+}
+
+// 新規: レンダラー向けに現在発音中のノート情報を返す関数
+export function getActiveNotes() {
+    if (!audioCtx) return [];
+    const t = audioCtx.currentTime;
+    const active = [];
+    
+    scheduledNodes.forEach(node => {
+        if (t >= node.startTime && t <= node.endTime) {
+            active.push({ pitch: node.pitch, color: node.color });
+        }
+    });
+
+    if (previewState.isPlaying && previewState.pitch !== -1) {
+        active.push({ pitch: previewState.pitch, color: previewState.color });
+    }
+
+    return active;
 }

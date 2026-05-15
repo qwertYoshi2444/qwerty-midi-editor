@@ -329,7 +329,8 @@ function setupTrackPanel() {
             itemDiv.classList.add('is-linked');
             const sourceTrack = STATE.tracks.find(t => t.id === track.linkedTo);
             const sourceName = sourceTrack ? sourceTrack.name : 'Unknown';
-            nameDiv.innerHTML = `${track.name} ${transposeBadge}<br><span style="font-size: 9px; color: #88ccff; font-weight: normal;">↪ Source: ${sourceName}</span>`;
+            // 表示を 🔗 [ソース名] に変更
+            nameDiv.innerHTML = `${track.name} ${transposeBadge}<br><span style="font-size: 10px; color: #88ccff; font-weight: normal;">🔗 ${sourceName}</span>`;
             nameDiv.title = "Double-click to rename (Linked Track)";
         } else {
             nameDiv.innerHTML = `${track.name} ${transposeBadge}`;
