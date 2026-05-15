@@ -190,20 +190,33 @@ function setupToolbar() {
                     if (t._linkStatus === 'mismatch') mismatchCount++;
                 });
 
-                document.getElementById('midi-info-title').textContent = file.name;
-                document.getElementById('midi-info-text').innerHTML = 
-                    `Tracks: ${validTracks} (Standard: ${validTracks - linkedCount - mismatchCount}, Linked: ${linkedCount})`;
+                // エラー回避のためのDOM要素存在チェックを追加
+                const titleEl = document.getElementById('midi-info-title');
+                if (titleEl) titleEl.textContent = file.name;
 
-                const warningPanel = document.getElementById('midi-mismatch-warning');
-                if (mismatchCount > 0) {
-                    warningPanel.style.display = 'block';
-                    warningPanel.querySelector('.mismatch-count-msg').textContent = 
-                        `${mismatchCount} track(s) have link data, but their notes do not match the source.`;
-                } else {
-                    warningPanel.style.display = 'none';
+                const textEl = document.getElementById('midi-info-text');
+                if (textEl) {
+                    if (titleEl) {
+                        textEl.innerHTML = `Tracks: ${validTracks} (Standard: ${validTracks - linkedCount - mismatchCount}, Linked: ${linkedCount})`;
+                    } else {
+                        // 古いHTMLファイルがキャッシュされていた場合のフォールバック表示
+                        textEl.textContent = `Loaded: ${file.name} (${validTracks} tracks)`;
+                    }
                 }
 
-                document.getElementById('midi-load-modal').classList.add('show');
+                const warningPanel = document.getElementById('midi-mismatch-warning');
+                if (warningPanel) {
+                    if (mismatchCount > 0) {
+                        warningPanel.style.display = 'block';
+                        const msgEl = warningPanel.querySelector('.mismatch-count-msg');
+                        if (msgEl) msgEl.textContent = `${mismatchCount} track(s) have link data, but their notes do not match the source.`;
+                    } else {
+                        warningPanel.style.display = 'none';
+                    }
+                }
+
+                const modal = document.getElementById('midi-load-modal');
+                if (modal) modal.classList.add('show');
             } catch (err) {
                 alert('Error parsing MIDI file: ' + err.message);
             }
