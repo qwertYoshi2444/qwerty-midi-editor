@@ -180,7 +180,29 @@ function setupToolbar() {
             try {
                 const arrayBuffer = await file.arrayBuffer();
                 pendingMidiData = parseMIDI(arrayBuffer);
-                document.getElementById('midi-info-text').textContent = `Loaded: ${file.name} (${pendingMidiData.tracks.length} tracks)`;
+                
+                const validTracks = pendingMidiData.tracks.length;
+                let linkedCount = 0;
+                let mismatchCount = 0;
+                
+                pendingMidiData.tracks.forEach(t => {
+                    if (t._linkStatus === 'linked') linkedCount++;
+                    if (t._linkStatus === 'mismatch') mismatchCount++;
+                });
+
+                document.getElementById('midi-info-title').textContent = file.name;
+                document.getElementById('midi-info-text').innerHTML = 
+                    `Tracks: ${validTracks} (Standard: ${validTracks - linkedCount - mismatchCount}, Linked: ${linkedCount})`;
+
+                const warningPanel = document.getElementById('midi-mismatch-warning');
+                if (mismatchCount > 0) {
+                    warningPanel.style.display = 'block';
+                    warningPanel.querySelector('.mismatch-count-msg').textContent = 
+                        `${mismatchCount} track(s) have link data, but their notes do not match the source.`;
+                } else {
+                    warningPanel.style.display = 'none';
+                }
+
                 document.getElementById('midi-load-modal').classList.add('show');
             } catch (err) {
                 alert('Error parsing MIDI file: ' + err.message);
@@ -329,7 +351,6 @@ function setupTrackPanel() {
             itemDiv.classList.add('is-linked');
             const sourceTrack = STATE.tracks.find(t => t.id === track.linkedTo);
             const sourceName = sourceTrack ? sourceTrack.name : 'Unknown';
-            // 表示を 🔗 [ソース名] に変更
             nameDiv.innerHTML = `${track.name} ${transposeBadge}<br><span style="font-size: 10px; color: #88ccff; font-weight: normal;">🔗 ${sourceName}</span>`;
             nameDiv.title = "Double-click to rename (Linked Track)";
         } else {
@@ -864,7 +885,13 @@ function setupMidiLoadModal() {
         const trackMode = document.getElementById('midi-load-track-mode').value;
         const bpmMode = document.getElementById('midi-load-bpm-mode').value;
         
-        loadParsedMIDI(pendingMidiData, trackMode === 'append', bpmMode === 'use_midi');
+        let mismatchAction = 'keep';
+        const radioChecked = document.querySelector('input[name="mismatch-action"]:checked');
+        if (radioChecked) {
+            mismatchAction = radioChecked.value;
+        }
+        
+        loadParsedMIDI(pendingMidiData, trackMode === 'append', bpmMode === 'use_midi', mismatchAction);
         
         setupTrackPanel();
         renderAll();

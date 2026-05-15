@@ -187,7 +187,6 @@ export function duplicateTrack(trackId) {
     STATE.tracks.splice(index + 1, 0, newTrack);
 }
 
-// 修正: リンクトラック名の連番生成ロジック
 export function createLinkedTrack(trackId) {
     const sourceTrack = STATE.tracks.find(t => t.id === trackId);
     if (!sourceTrack) return;
@@ -197,7 +196,6 @@ export function createLinkedTrack(trackId) {
     
     const nextId = STATE.tracks.length > 0 ? Math.max(...STATE.tracks.map(t => t.id)) + 1 : 1;
 
-    // "Track Name", "Track Name 2", "Track Name 3"... のように連番を振る
     const baseName = actualSourceTrack.name.replace(/\s\d+$/, '');
     let maxNum = 1;
     STATE.tracks.forEach(t => {
@@ -255,7 +253,7 @@ export function deleteTrack(trackId) {
     }
 }
 
-export function loadParsedMIDI(parsedData, appendMode, overrideBpm) {
+export function loadParsedMIDI(parsedData, appendMode, overrideBpm, mismatchAction = 'keep') {
     if (overrideBpm && parsedData.bpm) {
         STATE.bpm = parsedData.bpm;
         const bpmInput = document.getElementById('bpm-input');
@@ -264,20 +262,35 @@ export function loadParsedMIDI(parsedData, appendMode, overrideBpm) {
 
     if (!appendMode) STATE.tracks = []; 
 
-    // 元IDと新IDのマッピング用辞書
     const idMap = new Map();
 
     parsedData.tracks.forEach((parsedTrack, index) => {
         const nextId = STATE.tracks.length > 0 ? Math.max(...STATE.tracks.map(t => t.id)) + 1 : 1;
-        
-        // ロード順（1,2,3...）と新しいアプリ上のIDをマッピング
         idMap.set(index + 1, nextId);
         
         const usedColors = STATE.tracks.map(t => t.color);
         let newColorObj = TRACK_COLORS_PALETTE.find(c => !usedColors.includes(c.fill));
         if (!newColorObj) newColorObj = TRACK_COLORS_PALETTE[Math.floor(Math.random() * TRACK_COLORS_PALETTE.length)];
 
-        const newNotes = parsedTrack.notes.map(n => ({ ...n, id: STATE.nextNoteId++ }));
+        let finalNotes = parsedTrack.notes;
+        let finalLinkedTo = null;
+
+        // リンク状態とユーザーのアクションに応じて処理を分岐
+        if (parsedTrack._linkStatus === 'linked') {
+            finalLinkedTo = parsedTrack._linkedToOriginalId;
+            finalNotes = []; // 正常なリンクは自身のノートを破棄
+        } else if (parsedTrack._linkStatus === 'mismatch') {
+            if (mismatchAction === 'keep') {
+                finalLinkedTo = parsedTrack._linkedToOriginalId;
+                finalNotes = []; // 強制リンクなので自身のノートを破棄
+            } else {
+                finalLinkedTo = null; // 独立トラックにする
+                // ノートはそのまま保持する
+                parsedTrack.name += " (Independent)";
+            }
+        }
+
+        const newNotes = finalNotes.map(n => ({ ...n, id: STATE.nextNoteId++ }));
 
         STATE.tracks.push({
             id: nextId,
@@ -286,18 +299,17 @@ export function loadParsedMIDI(parsedData, appendMode, overrideBpm) {
             borderColor: newColorObj.border,
             notes: newNotes,
             volume: 1.0,
-            transpose: parsedTrack._transpose || 0, // 新規: トランスポーズ値の復元
+            transpose: parsedTrack._transpose || 0, 
             waveform: 'sawtooth',
             attack: 0.0001,
             decay: 0.1,
             sustain: 0.75,
             release: 0.005,
-            linkedTo: null,
-            _tempOriginalLink: parsedTrack._linkedToOriginalId // 後で解決するための退避
+            linkedTo: null, // 下のループで解決
+            _tempOriginalLink: finalLinkedTo
         });
     });
 
-    // リンクIDの解決
     STATE.tracks.forEach(track => {
         if (track._tempOriginalLink !== undefined && track._tempOriginalLink !== null) {
             const mappedId = idMap.get(track._tempOriginalLink);
