@@ -98,6 +98,23 @@ export const STATE = {
     }
 };
 
+// スクロールバー動的同期のためのヘルパー関数
+export function getMaxTick() {
+    let max = 0;
+    STATE.tracks.forEach(track => {
+        let currentNotes = track.notes;
+        if (track.linkedTo !== null) {
+            const srcTrack = STATE.tracks.find(t => t.id === track.linkedTo);
+            if (srcTrack) currentNotes = srcTrack.notes;
+        }
+        currentNotes.forEach(n => {
+            const endTick = n.tick + n.duration;
+            if (endTick > max) max = endTick;
+        });
+    });
+    return Math.max(max, STATE.playheadTick);
+}
+
 export function clearSelection() {
     STATE.notes.forEach(n => n.selected = false);
 }
@@ -275,17 +292,15 @@ export function loadParsedMIDI(parsedData, appendMode, overrideBpm, mismatchActi
         let finalNotes = parsedTrack.notes;
         let finalLinkedTo = null;
 
-        // リンク状態とユーザーのアクションに応じて処理を分岐
         if (parsedTrack._linkStatus === 'linked') {
             finalLinkedTo = parsedTrack._linkedToOriginalId;
-            finalNotes = []; // 正常なリンクは自身のノートを破棄
+            finalNotes = []; 
         } else if (parsedTrack._linkStatus === 'mismatch') {
             if (mismatchAction === 'keep') {
                 finalLinkedTo = parsedTrack._linkedToOriginalId;
-                finalNotes = []; // 強制リンクなので自身のノートを破棄
+                finalNotes = []; 
             } else {
-                finalLinkedTo = null; // 独立トラックにする
-                // ノートはそのまま保持する
+                finalLinkedTo = null; 
                 parsedTrack.name += " (Independent)";
             }
         }
@@ -305,7 +320,7 @@ export function loadParsedMIDI(parsedData, appendMode, overrideBpm, mismatchActi
             decay: 0.1,
             sustain: 0.75,
             release: 0.005,
-            linkedTo: null, // 下のループで解決
+            linkedTo: null, 
             _tempOriginalLink: finalLinkedTo
         });
     });

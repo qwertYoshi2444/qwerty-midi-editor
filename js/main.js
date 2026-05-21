@@ -1,5 +1,5 @@
-import { STATE, clearSelection, addTrack, duplicateTrack, createLinkedTrack, deleteTrack, TRACK_COLORS_PALETTE, loadParsedMIDI } from './state.js';
-import { initRenderer, renderAll } from './renderer.js';
+import { STATE, clearSelection, addTrack, duplicateTrack, createLinkedTrack, deleteTrack, TRACK_COLORS_PALETTE, loadParsedMIDI, getMaxTick } from './state.js';
+import { initRenderer, renderAll, startLerpAnimation } from './renderer.js';
 import { initEvents } from './events.js';
 import { updateReferenceVolume, loadReferenceAudio, updateMasterVolume } from './audio-engine.js';
 import { exportToMIDI, parseMIDI } from './midi-io.js';
@@ -68,6 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     resizeCanvas();
     setupToolbar();
+    setupScrollbars(); // スクロールバーの初期化を追加
     setupRefTrackPanel(); 
     setupTrackPanel();
     setupSynthModal();
@@ -95,6 +96,63 @@ function resizeCanvas() {
     timeCvs.height = 30;
 
     renderAll();
+}
+
+function setupScrollbars() {
+    const scrollH = document.getElementById('scroll-h');
+    const scrollV = document.getElementById('scroll-v');
+    let isDraggingH = false;
+    let isDraggingV = false;
+
+    // --- 水平(Tick)スクロールバー ---
+    const startH = () => isDraggingH = true;
+    const stopH = () => isDraggingH = false;
+    scrollH.addEventListener('mousedown', startH);
+    scrollH.addEventListener('touchstart', startH, {passive: true});
+    window.addEventListener('mouseup', stopH);
+    window.addEventListener('touchend', stopH);
+    
+    scrollH.addEventListener('input', (e) => {
+        STATE.targetScrollTick = parseFloat(e.target.value);
+        startLerpAnimation();
+    });
+
+    // --- 垂直(Pitch)スクロールバー ---
+    const startV = () => isDraggingV = true;
+    const stopV = () => isDraggingV = false;
+    scrollV.addEventListener('mousedown', startV);
+    scrollV.addEventListener('touchstart', startV, {passive: true});
+    window.addEventListener('mouseup', stopV);
+    window.addEventListener('touchend', stopV);
+    
+    scrollV.addEventListener('input', (e) => {
+        STATE.targetScrollPitch = parseFloat(e.target.value);
+        startLerpAnimation();
+    });
+
+    function syncScrollbars() {
+        if (!isDraggingH) {
+            const canvasGrid = document.getElementById('grid-canvas');
+            const visibleTicks = canvasGrid ? canvasGrid.width / Math.max(0.1, STATE.zoomX) : 0;
+            // 余裕を持たせた最大値を計算
+            const contentMax = Math.max(1000, getMaxTick() + visibleTicks);
+            
+            // 最大値の動的更新（大きく増える場合のみ拡張して、操作感を安定させる）
+            if (parseFloat(scrollH.max) < contentMax) {
+                scrollH.max = contentMax + 500;
+            } else if (parseFloat(scrollH.max) > contentMax + 3000) {
+                scrollH.max = contentMax + 1000;
+            }
+            scrollH.value = STATE.scrollTick;
+        }
+
+        if (!isDraggingV) {
+            scrollV.value = STATE.scrollPitch;
+        }
+        
+        requestAnimationFrame(syncScrollbars);
+    }
+    requestAnimationFrame(syncScrollbars);
 }
 
 function setupToolbar() {
@@ -190,7 +248,6 @@ function setupToolbar() {
                     if (t._linkStatus === 'mismatch') mismatchCount++;
                 });
 
-                // エラー回避のためのDOM要素存在チェックを追加
                 const titleEl = document.getElementById('midi-info-title');
                 if (titleEl) titleEl.textContent = file.name;
 
@@ -199,7 +256,6 @@ function setupToolbar() {
                     if (titleEl) {
                         textEl.innerHTML = `Tracks: ${validTracks} (Standard: ${validTracks - linkedCount - mismatchCount}, Linked: ${linkedCount})`;
                     } else {
-                        // 古いHTMLファイルがキャッシュされていた場合のフォールバック表示
                         textEl.textContent = `Loaded: ${file.name} (${validTracks} tracks)`;
                     }
                 }
