@@ -168,10 +168,12 @@
         .track-vol-container label { font-size: 10px; color: #888; }
         .track-vol { flex-grow: 1; accent-color: #ff6600; cursor: pointer; height: 4px; }
         
+        /* 判定領域を広げるための変更 */
         .track-drag-handle {
             cursor: grab;
             display: flex; align-items: center; justify-content: center;
-            color: #666; touch-action: none; padding-right: 4px;
+            color: #666; touch-action: none;
+            padding: 10px; margin: -10px -4px -10px -10px; 
         }
         .track-drag-handle:hover { color: #aaa; }
         .track-drag-handle:active { cursor: grabbing; color: #fff; }
@@ -202,9 +204,7 @@
         .custom-scrollbar {
             -webkit-appearance: none; background: transparent; width: 100%; height: 100%; margin: 0; outline: none;
         }
-        .custom-scrollbar::-webkit-slider-runnable-track {
-            background: #111; border-radius: 4px;
-        }
+        .custom-scrollbar::-webkit-slider-runnable-track { background: #111; border-radius: 4px; }
         .custom-scrollbar::-webkit-slider-thumb {
             -webkit-appearance: none; background: #555; border: 1px solid #333; border-radius: 4px; cursor: pointer;
         }
@@ -213,7 +213,6 @@
         
         #scroll-h.custom-scrollbar::-webkit-slider-runnable-track { height: 8px; }
         #scroll-h.custom-scrollbar::-webkit-slider-thumb { height: 8px; width: 60px; margin-top: 0px; }
-        
         #scroll-v.custom-scrollbar { -webkit-appearance: slider-vertical; width: 8px; }
         
         .modal-overlay {
@@ -258,11 +257,32 @@
         #midi-mismatch-warning label { cursor: pointer; display: flex; align-items: center; gap: 6px; margin-bottom: 6px; color: #eee; }
         #midi-mismatch-warning label:last-child { margin-bottom: 0; }
 
-        /* Undo/Redo用のToast（右下通知）スタイル */
         #toast-container {
-            position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; 
+            position: fixed; bottom: 20px; left: 20px; display: flex; flex-direction: column; 
             gap: 8px; z-index: 9999; pointer-events: none;
         }
+
+        /* モバイル専用フローティング編集パネル */
+        #mobile-edit-panel {
+            display: none;
+            position: fixed; bottom: 30px; right: 30px;
+            background-color: rgba(44, 48, 50, 0.95);
+            border: 1px solid #555; border-radius: 8px; padding: 8px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.8);
+            z-index: 2000;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: 8px;
+        }
+        #mobile-edit-panel.show { display: grid; }
+        .m-edit-btn {
+            width: 44px; height: 44px; border-radius: 6px;
+            background-color: #3b4043; border: 1px solid #555; color: #d0d0d0;
+            font-size: 14px; font-weight: bold; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .m-edit-btn:active { background-color: #ff6600; color: #fff; border-color: #cc5200; }
+        .m-edit-btn svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     </style>
 </head>
 <body>
@@ -279,7 +299,6 @@
             </button>
         </div>
 
-        <!-- Undo/Redo ボタン追加 -->
         <div class="tool-btn-group">
             <button class="tool-btn" id="btn-undo" title="Undo (Ctrl+Z)">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"></polyline><path d="M20 20v-7a4 4 0 0 0-4-4H4"></path></svg>
@@ -392,7 +411,6 @@
                     <input type="range" id="scroll-v" class="custom-scrollbar" min="0" max="127" step="0.1" value="84">
                 </div>
             </div>
-            
         </div>
     </div>
 </div>
@@ -403,8 +421,8 @@
     <a href="#" id="ctx-menu-delete" class="danger">Delete</a>
 </div>
 
+<!-- その他のモーダルは省略せずに記載 -->
 <div class="modal-overlay" id="synth-modal">
-    <!-- 省略せずに記載 -->
     <div class="modal-title" id="modal-track-name">Track Settings</div>
     <div class="modal-row">
         <label>Transpose</label>
@@ -486,8 +504,27 @@
     </div>
 </div>
 
-<!-- Undo/Redo通知用コンテナ追加 -->
 <div id="toast-container"></div>
+
+<!-- モバイル専用編集パネル (4x2) -->
+<div id="mobile-edit-panel">
+    <button class="m-edit-btn" id="mbtn-copy" title="Copy">
+        <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+    </button>
+    <button class="m-edit-btn" id="mbtn-cut" title="Cut">
+        <svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><line x1="20" y1="4" x2="8.12" y2="15.88"></line><line x1="14.47" y1="14.48" x2="20" y2="20"></line><line x1="8.12" y1="8.12" x2="12" y2="12"></line></svg>
+    </button>
+    <button class="m-edit-btn" id="mbtn-paste" title="Paste">
+        <svg viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
+    </button>
+    <button class="m-edit-btn" id="mbtn-delete" title="Delete">
+        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+    </button>
+    <button class="m-edit-btn" id="mbtn-up12">+12</button>
+    <button class="m-edit-btn" id="mbtn-up1">+1</button>
+    <button class="m-edit-btn" id="mbtn-down1">-1</button>
+    <button class="m-edit-btn" id="mbtn-down12">-12</button>
+</div>
 
 <script>
     if ('serviceWorker' in navigator) {
