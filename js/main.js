@@ -98,7 +98,6 @@ export function updateMobilePanel() {
 function setupMobilePanel() {
     const panel = document.getElementById('mobile-edit-panel');
     
-    // イベント伝播防止（キャンバスの誤操作防止）
     if (panel) {
         ['touchstart', 'touchmove', 'touchend', 'mousedown', 'mousemove', 'mouseup', 'click'].forEach(evt => {
             panel.addEventListener(evt, e => e.stopPropagation(), { passive: false });
@@ -170,7 +169,6 @@ function resizeCanvas() {
     timeCvs.width = Math.max(0, w); 
     timeCvs.height = 30;
 
-    // 縦スクロールバーの高さをコンテナに合わせる（CSSで90度回転しているためwidthに設定）
     const scrollV = document.getElementById('scroll-v');
     const vContainer = document.getElementById('v-scroll-container');
     if (scrollV && vContainer) {
@@ -339,6 +337,7 @@ function setupToolbar() {
                 let linkedCount = 0;
                 let mismatchCount = 0;
                 
+                // Mismatchの数をカウント（window.confirm 廃止に伴うダイアログ内での警告表示用）
                 pendingMidiData.tracks.forEach(t => {
                     if (t._linkStatus === 'linked') linkedCount++;
                     if (t._linkStatus === 'mismatch') mismatchCount++;

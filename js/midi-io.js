@@ -251,6 +251,7 @@ export function parseMIDI(arrayBuffer) {
         let linkedToId = null;
         let transposeVal = 0;
         let notesToKeep = rt.notes;
+        let linkStatus = 'standard';
 
         const match = rt.rawName.match(linkRegex);
         
@@ -276,20 +277,16 @@ export function parseMIDI(arrayBuffer) {
                     }
                 }
 
+                linkedToId = targetSrcId;
+                transposeVal = tVal;
+                finalName = cleanName;
+
                 if (!isMatch) {
-                    const keepLink = confirm(`Track '${cleanName}' is marked as a link, but its note data differs from the source track.\n\n[OK] Keep as linked track (override differing notes)\n[Cancel] Import as an independent track`);
-                    if (keepLink) {
-                        linkedToId = targetSrcId; 
-                        transposeVal = tVal;
-                        finalName = cleanName;
-                        notesToKeep = []; 
-                    } else {
-                        finalName = cleanName + " (Independent)";
-                    }
+                    linkStatus = 'mismatch';
+                    // mismatch時は読み込んだ独自ノートを一旦保持しておく
+                    notesToKeep = rt.notes;
                 } else {
-                    linkedToId = targetSrcId;
-                    transposeVal = tVal;
-                    finalName = cleanName;
+                    linkStatus = 'linked';
                     notesToKeep = []; 
                 }
             } else {
@@ -302,7 +299,8 @@ export function parseMIDI(arrayBuffer) {
             notes: notesToKeep,
             linkedToId: linkedToId,
             transpose: transposeVal,
-            originalId: rt.idIndex 
+            originalId: rt.idIndex,
+            linkStatus: linkStatus
         });
     });
 
@@ -310,7 +308,8 @@ export function parseMIDI(arrayBuffer) {
         name: pt.name,
         notes: pt.notes,
         _linkedToOriginalId: pt.linkedToId, 
-        _transpose: pt.transpose
+        _transpose: pt.transpose,
+        _linkStatus: pt.linkStatus
     }));
 
     return { bpm: resultBpm, tracks: finalResultTracks };

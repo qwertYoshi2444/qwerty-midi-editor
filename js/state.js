@@ -343,9 +343,9 @@ export function loadParsedMIDI(parsedData, appendMode, overrideBpm, mismatchActi
         } else if (parsedTrack._linkStatus === 'mismatch') {
             if (mismatchAction === 'keep') {
                 finalLinkedTo = parsedTrack._linkedToOriginalId;
-                finalNotes = []; 
+                finalNotes = []; // リンク元のノートを強制的に使うためパースしたノートは破棄
             } else {
-                finalLinkedTo = null; 
+                finalLinkedTo = null; // 独立トラックにするのでパースしたノートを維持
                 parsedTrack.name += " (Independent)";
             }
         }

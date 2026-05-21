@@ -24,6 +24,8 @@ let lastPinchCenter = { centerX: 0, centerY: 0 };
 let activeTouchId = null;
 let lastTouchX = 0;
 let lastTouchY = 0;
+let touchHoldTimer = null;
+let isTouchEditing = false; // 編集操作として確定したかどうかのフラグ
 
 function isEditingLocked() {
     const track = STATE.tracks.find(t => t.id === STATE.activeTrackId);
@@ -44,7 +46,6 @@ export function initEvents(gridCvs) {
         canvasGrid.addEventListener('mousedown', onMouseDown);
         canvasGrid.addEventListener('wheel', onWheel, { passive: false });
         
-        // モバイル向けタッチジェスチャーの登録 (passive: false で preventDefault を許可)
         canvasGrid.addEventListener('touchstart', onTouchStart, { passive: false });
         canvasGrid.addEventListener('touchmove', onTouchMove, { passive: false });
         canvasGrid.addEventListener('touchend', onTouchEnd, { passive: false });
@@ -102,20 +103,38 @@ function updatePlayheadFromMouse(clientX) {
 function getPinchInfo(touches) {
     const dx = Math.abs(touches[0].clientX - touches[1].clientX);
     const dy = Math.abs(touches[0].clientY - touches[1].clientY);
-    const distX = Math.max(10, dx); // 0除算や極端な拡大を防ぐ
+    const distX = Math.max(10, dx);
     const distY = Math.max(10, dy);
     const centerX = (touches[0].clientX + touches[1].clientX) / 2;
     const centerY = (touches[0].clientY + touches[1].clientY) / 2;
     return { distX, distY, centerX, centerY };
 }
 
+function startTouchEdit() {
+    isTouchEditing = true;
+    const synthEvent = { clientX: lastTouchX, clientY: lastTouchY, button: 0, ctrlKey: false, shiftKey: false, altKey: false };
+    onMouseDown(synthEvent);
+}
+
 function onTouchStart(e) {
+    if (touchHoldTimer) {
+        clearTimeout(touchHoldTimer);
+        touchHoldTimer = null;
+    }
+
     if (e.touches.length === 2) {
         e.preventDefault(); 
         isPinching = true;
-        activeTouchId = null; // 1本指操作をキャンセル
         
-        // 編集状態を強制キャンセル
+        // 1本指操作が始まっていたらキャンセル
+        if (isTouchEditing) {
+            const synthEvent = { clientX: lastTouchX, clientY: lastTouchY, button: 0, ctrlKey: false, shiftKey: false, altKey: false };
+            onMouseUp(synthEvent);
+        }
+        
+        activeTouchId = null;
+        isTouchEditing = false;
+        
         resetEditState();
         STATE.selectionBox.active = false;
         
@@ -128,10 +147,14 @@ function onTouchStart(e) {
         activeTouchId = e.changedTouches[0].identifier;
         lastTouchX = e.changedTouches[0].clientX;
         lastTouchY = e.changedTouches[0].clientY;
+        isTouchEditing = false;
         
-        // 疑似的なマウスイベントを発火
-        const synthEvent = { clientX: lastTouchX, clientY: lastTouchY, button: 0, ctrlKey: false, shiftKey: false, altKey: false };
-        onMouseDown(synthEvent);
+        // 80msの間、2本目の指が来ないか様子を見る
+        touchHoldTimer = setTimeout(() => {
+            if (activeTouchId !== null && !isPinching) {
+                startTouchEdit();
+            }
+        }, 80);
     }
 }
 
@@ -140,18 +163,15 @@ function onTouchMove(e) {
         e.preventDefault();
         const info = getPinchInfo(e.touches);
 
-        // パン（平行移動）
         const deltaX = info.centerX - lastPinchCenter.centerX;
         const deltaY = info.centerY - lastPinchCenter.centerY;
         STATE.targetScrollTick = Math.max(0, STATE.targetScrollTick - deltaX / STATE.targetZoomX);
         STATE.targetScrollPitch = Math.min(127, Math.max(10, STATE.targetScrollPitch + deltaY / STATE.targetZoomY));
 
-        // ズームの中心（指の真ん中）がズレないようにScrollを補正する関数
         const rect = canvasGrid.getBoundingClientRect();
         const canvasX = info.centerX - rect.left;
         const canvasY = info.centerY - rect.top;
 
-        // X軸（時間方向）の独立ピンチズーム
         if (lastPinchDistanceX > 15 && info.distX > 15) {
             const scaleX = info.distX / lastPinchDistanceX;
             const oldZoomX = STATE.targetZoomX;
@@ -159,7 +179,6 @@ function onTouchMove(e) {
             STATE.targetScrollTick += (canvasX / oldZoomX) - (canvasX / STATE.targetZoomX);
         }
 
-        // Y軸（ピッチ方向）の独立ピンチズーム
         if (lastPinchDistanceY > 15 && info.distY > 15) {
             const scaleY = info.distY / lastPinchDistanceY;
             const oldZoomY = STATE.targetZoomY;
@@ -173,27 +192,47 @@ function onTouchMove(e) {
 
         startLerpAnimation();
     } else if (e.touches.length === 1 && activeTouchId !== null) {
-        e.preventDefault(); // ここでスクロールを止めることで「なぞる」操作が可能になる
-        
         const touch = Array.from(e.changedTouches).find(t => t.identifier === activeTouchId);
         if (touch) {
-            lastTouchX = touch.clientX;
-            lastTouchY = touch.clientY;
-            const synthEvent = { clientX: lastTouchX, clientY: lastTouchY, button: 0, ctrlKey: false, shiftKey: false, altKey: false };
-            onMouseMove(synthEvent);
+            const dx = Math.abs(touch.clientX - lastTouchX);
+            const dy = Math.abs(touch.clientY - lastTouchY);
+
+            // 待機中に指が10px以上動いた場合、即座に編集操作として確定させる
+            if (!isTouchEditing && (dx > 10 || dy > 10)) {
+                if (touchHoldTimer) clearTimeout(touchHoldTimer);
+                startTouchEdit();
+            }
+
+            if (isTouchEditing) {
+                e.preventDefault(); 
+                lastTouchX = touch.clientX;
+                lastTouchY = touch.clientY;
+                const synthEvent = { clientX: lastTouchX, clientY: lastTouchY, button: 0, ctrlKey: false, shiftKey: false, altKey: false };
+                onMouseMove(synthEvent);
+            }
         }
     }
 }
 
 function onTouchEnd(e) {
+    if (touchHoldTimer) {
+        clearTimeout(touchHoldTimer);
+        touchHoldTimer = null;
+    }
+
     if (isPinching && e.touches.length < 2) {
         isPinching = false;
     }
     
-    // 追跡していた1本指が離れた場合
     const touch = Array.from(e.changedTouches).find(t => t.identifier === activeTouchId);
     if (touch) {
+        // もし指が離れるまで待機状態だったなら、クリックとみなして処理する
+        if (!isTouchEditing) {
+            startTouchEdit();
+        }
+        
         activeTouchId = null;
+        isTouchEditing = false;
         const synthEvent = { clientX: lastTouchX, clientY: lastTouchY, button: 0, ctrlKey: false, shiftKey: false, altKey: false };
         onMouseUp(synthEvent);
     }
