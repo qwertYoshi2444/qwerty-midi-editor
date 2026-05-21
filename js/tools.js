@@ -1,6 +1,5 @@
 import { STATE, clearSelection, deleteNote } from './state.js';
 import { getNoteAt, xToTick, getPitchAtY, snapTick, tickToX, pitchToY } from './utils.js';
-// 追加: オーディオエンジンのインポート
 import { playPreview } from './audio-engine.js';
 
 export const editState = {
@@ -79,8 +78,11 @@ export const DrawTool = {
                     clickedNote.selected = true;
                 }
 
-                const edgeHitArea = 8 / STATE.zoomX;
-                if (Math.abs(rawTick - (clickedNote.tick + clickedNote.duration)) <= edgeHitArea) {
+                // リサイズ判定エリアを拡大（画面上で約16px幅、右側へのはみ出しも許容）
+                const edgeHitTicks = 16 / STATE.zoomX; 
+                const noteEndTick = clickedNote.tick + clickedNote.duration;
+                // 右端の付近（手前16px 〜 奥6px）ならリサイズと判定
+                if (rawTick >= noteEndTick - edgeHitTicks && rawTick <= noteEndTick + (6 / STATE.zoomX)) {
                     editState.action = 'resize';
                 } else {
                     editState.action = 'move';
@@ -192,8 +194,6 @@ export const DrawTool = {
         resetEditState();
     }
 };
-
-// ... SelectTool, MuteTool, DeleteTool は変更なしのため省略せずに記載します ...
 
 export const SelectTool = {
     onMouseDown: (e, mouseX, mouseY) => {

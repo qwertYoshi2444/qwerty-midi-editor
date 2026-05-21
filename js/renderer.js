@@ -1,6 +1,6 @@
 import { STATE } from './state.js';
 import { tickToX, xToTick, pitchToY, isBlackKey, getNoteName } from './utils.js';
-import { getActiveNotes } from './audio-engine.js'; // 追加: ハイライト用情報の取得
+import { getActiveNotes } from './audio-engine.js'; 
 
 let ctxGrid, ctxKeyboard, ctxTimeline;
 let canvasGrid, canvasKeyboard, canvasTimeline;
@@ -183,6 +183,7 @@ function renderNotes() {
 
         let fillColor = activeTrack.color;
         let strokeColor = activeTrack.borderColor;
+        let lineWidth = 1;
         
         if (isLinked) {
             fillColor = note.muted ? '#666666' : '#999999';
@@ -191,20 +192,44 @@ function renderNotes() {
             if (note.muted) {
                 fillColor = '#555555'; strokeColor = '#333333';
             } else if (note.selected) {
-                fillColor = '#ff3333'; strokeColor = '#cc0000';
+                // 選択時は元の色を保持しつつ、白枠で囲む
+                strokeColor = '#ffffff';
+                lineWidth = 2;
             }
         }
 
         ctxGrid.fillStyle = fillColor; 
         ctxGrid.strokeStyle = strokeColor; 
-        ctxGrid.lineWidth = 1;
+        ctxGrid.lineWidth = lineWidth;
         
+        // パスの作成
         ctxGrid.beginPath();
         if (ctxGrid.roundRect) ctxGrid.roundRect(x, y + heightPadding, w, h - heightPadding * 2, 3);
         else ctxGrid.rect(x, y + heightPadding, w, h - heightPadding * 2);
+        
+        // 塗りつぶし
         ctxGrid.fill(); 
+
+        // 右端のリサイズ判定の可視化（グラデーション）
+        if (!isLinked && !note.muted && w > 10) {
+            ctxGrid.save(); // クリップ前状態保存
+            ctxGrid.clip(); // 先ほど作ったパス（角丸）でクリッピング
+
+            const handleWidth = Math.min(15, w / 2); // ハンドル幅（最大15px）
+            const grad = ctxGrid.createLinearGradient(x + w - handleWidth, 0, x + w, 0);
+            grad.addColorStop(0, 'rgba(255,255,255,0)');
+            grad.addColorStop(1, 'rgba(255,255,255,0.7)');
+            
+            ctxGrid.fillStyle = grad;
+            ctxGrid.fillRect(x + w - handleWidth, y + heightPadding, handleWidth, h - heightPadding * 2);
+            
+            ctxGrid.restore(); // クリップ解除
+        }
+
+        // 枠線の描画（クリップ解除後に描くことで綺麗に見える）
         ctxGrid.stroke();
         
+        // 内部の装飾ライン
         ctxGrid.fillStyle = note.muted ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.3)'; 
         ctxGrid.fillRect(x + 2, y + heightPadding + 1, w - 4, 2);
         ctxGrid.fillStyle = note.muted ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.3)'; 
@@ -212,12 +237,14 @@ function renderNotes() {
 
         if (isLinked && w > 10) {
             ctxGrid.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+            ctxGrid.lineWidth = 1;
             ctxGrid.beginPath();
             ctxGrid.moveTo(x + 3, y + h - heightPadding - 2);
             ctxGrid.lineTo(x + w - 3, y + heightPadding + 2);
             ctxGrid.stroke();
         }
 
+        // 音階名テキスト
         if (w > 25 && h > 10 && !note.muted) {
             ctxGrid.fillStyle = isLinked ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.8)';
             const fontSize = Math.min(11, h - 4); 
@@ -288,7 +315,6 @@ function renderKeyboard() {
     const topPitch = STATE.scrollPitch + 1;
     const bottomPitch = STATE.scrollPitch - (h / STATE.zoomY) - 1;
 
-    // 現在発音中のノートを取得（重複するピッチには最後に見つかった色を適用）
     const activeNotes = getActiveNotes();
     const playingPitches = {};
     activeNotes.forEach(note => {
@@ -302,10 +328,9 @@ function renderKeyboard() {
         ctxKeyboard.fillStyle = isBlackKey(pitch) ? '#1e1e1e' : '#e0e0e0';
         ctxKeyboard.fillRect(0, y, w, STATE.zoomY);
 
-        // 発音中のハイライト描画
         if (playingPitches[pitch]) {
             ctxKeyboard.fillStyle = playingPitches[pitch];
-            ctxKeyboard.globalAlpha = 0.5; // 半透明で重ねる
+            ctxKeyboard.globalAlpha = 0.5;
             ctxKeyboard.fillRect(0, y, w, STATE.zoomY);
             ctxKeyboard.globalAlpha = 1.0;
         }

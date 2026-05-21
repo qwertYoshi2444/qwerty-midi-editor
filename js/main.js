@@ -68,7 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     resizeCanvas();
     setupToolbar();
-    setupScrollbars(); // スクロールバーの初期化を追加
+    setupScrollbars(); 
     setupRefTrackPanel(); 
     setupTrackPanel();
     setupSynthModal();
@@ -85,14 +85,16 @@ function resizeCanvas() {
     const keyCvs = document.getElementById('keyboard-canvas');
     const timeCvs = document.getElementById('timeline-canvas');
 
-    const w = rect.width - 80;
-    const h = rect.height - 30; 
+    // キーボード(80) + 垂直スクロールバー(14)
+    const w = rect.width - 80 - 14; 
+    // タイムライン(30) + 水平スクロールバー(12)
+    const h = rect.height - 30 - 12; 
 
-    gridCvs.width = w; 
-    gridCvs.height = h;
+    gridCvs.width = Math.max(0, w); 
+    gridCvs.height = Math.max(0, h);
     keyCvs.width = 80; 
-    keyCvs.height = h;
-    timeCvs.width = w; 
+    keyCvs.height = Math.max(0, h);
+    timeCvs.width = Math.max(0, w); 
     timeCvs.height = 30;
 
     renderAll();
@@ -104,40 +106,35 @@ function setupScrollbars() {
     let isDraggingH = false;
     let isDraggingV = false;
 
-    // --- 水平(Tick)スクロールバー ---
+    // 水平スクロール
     const startH = () => isDraggingH = true;
-    const stopH = () => isDraggingH = false;
     scrollH.addEventListener('mousedown', startH);
     scrollH.addEventListener('touchstart', startH, {passive: true});
-    window.addEventListener('mouseup', stopH);
-    window.addEventListener('touchend', stopH);
-    
     scrollH.addEventListener('input', (e) => {
         STATE.targetScrollTick = parseFloat(e.target.value);
         startLerpAnimation();
     });
 
-    // --- 垂直(Pitch)スクロールバー ---
+    // 垂直スクロール
     const startV = () => isDraggingV = true;
-    const stopV = () => isDraggingV = false;
     scrollV.addEventListener('mousedown', startV);
     scrollV.addEventListener('touchstart', startV, {passive: true});
-    window.addEventListener('mouseup', stopV);
-    window.addEventListener('touchend', stopV);
-    
     scrollV.addEventListener('input', (e) => {
         STATE.targetScrollPitch = parseFloat(e.target.value);
         startLerpAnimation();
     });
 
+    // ドラッグ解除
+    window.addEventListener('mouseup', () => { isDraggingH = false; isDraggingV = false; });
+    window.addEventListener('touchend', () => { isDraggingH = false; isDraggingV = false; });
+
+    // Canvasの移動状態をスライダーに同期
     function syncScrollbars() {
         if (!isDraggingH) {
             const canvasGrid = document.getElementById('grid-canvas');
             const visibleTicks = canvasGrid ? canvasGrid.width / Math.max(0.1, STATE.zoomX) : 0;
-            // 余裕を持たせた最大値を計算
             const contentMax = Math.max(1000, getMaxTick() + visibleTicks);
             
-            // 最大値の動的更新（大きく増える場合のみ拡張して、操作感を安定させる）
             if (parseFloat(scrollH.max) < contentMax) {
                 scrollH.max = contentMax + 500;
             } else if (parseFloat(scrollH.max) > contentMax + 3000) {

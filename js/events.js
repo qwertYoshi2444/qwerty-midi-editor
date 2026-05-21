@@ -189,10 +189,15 @@ function updateCursor(mouseX, mouseY, rawTick) {
     if (STATE.currentTool !== 'draw') return;
 
     const hoveredNote = getNoteAt(mouseX, mouseY);
-    if (hoveredNote && Math.abs(rawTick - (hoveredNote.tick + hoveredNote.duration)) <= (8 / STATE.zoomX)) {
-        canvasGrid.style.cursor = 'ew-resize';
-    } else if (hoveredNote) {
-        canvasGrid.style.cursor = 'move';
+    if (hoveredNote) {
+        // マウスホバー時のカーソル変更の判定も揃える
+        const edgeHitTicks = 16 / STATE.zoomX;
+        const noteEndTick = hoveredNote.tick + hoveredNote.duration;
+        if (rawTick >= noteEndTick - edgeHitTicks && rawTick <= noteEndTick + (6 / STATE.zoomX)) {
+            canvasGrid.style.cursor = 'ew-resize';
+        } else {
+            canvasGrid.style.cursor = 'move';
+        }
     } else {
         canvasGrid.style.cursor = 'crosshair';
     }
