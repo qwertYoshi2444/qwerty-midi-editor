@@ -44,8 +44,7 @@
             padding: 4px 10px; cursor: pointer; border-radius: 3px; font-size: 12px;
             display: flex; align-items: center; gap: 5px;
         }
-        /* アイコンの表示崩れを防ぐため、強制的なfill/stroke指定を削除 */
-        .tool-btn svg { width: 14px; height: 14px; }
+        .tool-btn svg { width: 14px; height: 14px; fill: currentColor; stroke: currentColor; stroke-width: 0; }
         
         .tool-btn:hover { background-color: #4b5155; }
         .tool-btn.active { background-color: #ff6600; color: #fff; border-color: #cc5200; font-weight: bold; }
@@ -199,7 +198,6 @@
         #keyboard-canvas { width: 80px; background-color: #1e2122; border-right: 1px solid #1a1c1d; flex-shrink: 0; touch-action: none; cursor: pointer; }
         #grid-canvas { flex: 1; background-color: #1e2122; outline: none; touch-action: none; }
         
-        /* 縦スクロールバーのコンテナを相対配置に変更 */
         #v-scroll-container { width: 14px; background-color: #1e2122; border-left: 1px solid #111; flex-shrink: 0; position: relative; }
         
         .custom-scrollbar {
@@ -215,7 +213,6 @@
         #scroll-h.custom-scrollbar::-webkit-slider-runnable-track { height: 8px; }
         #scroll-h.custom-scrollbar::-webkit-slider-thumb { height: 8px; width: 60px; margin-top: 0px; }
         
-        /* 縦スクロールバーをCSSで90度回転して配置 */
         #scroll-v.custom-scrollbar { 
             position: absolute;
             height: 8px;
@@ -311,11 +308,9 @@
 
         <div class="tool-btn-group">
             <button class="tool-btn" id="btn-undo" title="Undo (Ctrl+Z)">
-                <!-- 矢印アイコンに変更 -->
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg>
             </button>
             <button class="tool-btn" id="btn-redo" title="Redo (Ctrl+Shift+Z)">
-                <!-- 矢印アイコンに変更 -->
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5v0A5.5 5.5 0 0 0 9.5 20H13"/></svg>
             </button>
         </div>
@@ -331,7 +326,6 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg> Mute
             </button>
             <button class="tool-btn" id="btn-delete" title="Delete (D)">
-                <!-- 消しゴムアイコンに変更 -->
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H7L3 16C2.5 15.5 2.5 14.5 3 14L13 4C13.5 3.5 14.5 3.5 15 4L20 9C20.5 9.5 20.5 10.5 20 11L11 20H20V20Z"/><line x1="18" y1="13" x2="11" y2="20"/></svg> Delete
             </button>
         </div>
@@ -339,8 +333,12 @@
         <div style="display:flex; align-items:center; gap:10px;">
             <div style="display:flex; align-items:center; gap:4px;">
                 <label for="snap-select" class="toolbar-label" title="Snap">
-                    <!-- 磁石アイコンに変更 -->
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v5a8 8 0 0 0 16 0V9"/><path d="M4 4h4v5H4z"/><path d="M16 4h4v5h-4z"/></svg>
+                    <!-- SVGアイコンを、上向きのU字磁石（極部分を塗りつぶし）に変更 -->
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 11V9a8 8 0 0 1 16 0v2"></path>
+                        <path d="M4 11h5v4H4z" fill="currentColor"></path>
+                        <path d="M15 11h5v4h-5z" fill="currentColor"></path>
+                    </svg>
                 </label>
                 <select id="snap-select">
                     <option value="384">Bar</option>
@@ -487,12 +485,15 @@
     <div class="modal-title" style="font-size: 15px;">Load MIDI File</div>
     <div style="font-size: 13px; font-weight: bold; margin-bottom: 4px; color: #fff;" id="midi-info-title">Parsing file...</div>
     <div style="font-size: 12px; margin-bottom: 15px; color: #aaa;" id="midi-info-text"></div>
+    
+    <!-- Mismatch Warning Section -->
     <div id="midi-mismatch-warning">
         <div style="color: #ff6666; font-weight: bold; margin-bottom: 6px;">⚠️ Mismatched Link Data Detected</div>
         <div class="mismatch-count-msg" style="margin-bottom: 8px;"></div>
-        <label><input type="radio" name="mismatch-action" value="keep" checked> Force Keep Links (Override notes)</label>
+        <label><input type="radio" name="mismatch-action" value="keep" checked> Force Keep Links (Override differing notes)</label>
         <label><input type="radio" name="mismatch-action" value="independent"> Import as Independent Tracks</label>
     </div>
+
     <div class="modal-row">
         <label>Tracks:</label>
         <select id="midi-load-track-mode">
@@ -515,7 +516,7 @@
 
 <div id="toast-container"></div>
 
-<!-- モバイル専用編集パネル (4x2) -->
+<!-- モバイル専用編集パネル -->
 <div id="mobile-edit-panel">
     <button class="m-edit-btn" id="mbtn-copy" title="Copy">
         <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
@@ -527,11 +528,9 @@
         <svg viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
     </button>
     <button class="m-edit-btn" id="mbtn-delete" title="Delete">
-        <!-- 消しゴムアイコンに変更 -->
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H7L3 16C2.5 15.5 2.5 14.5 3 14L13 4C13.5 3.5 14.5 3.5 15 4L20 9C20.5 9.5 20.5 10.5 20 11L11 20H20V20Z"/><line x1="18" y1="13" x2="11" y2="20"/></svg>
     </button>
     
-    <!-- 配置順序の変更 -->
     <button class="m-edit-btn" id="mbtn-up12">+12</button>
     <button class="m-edit-btn" id="mbtn-down12">-12</button>
     <button class="m-edit-btn" id="mbtn-up1">+1</button>
