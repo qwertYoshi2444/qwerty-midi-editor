@@ -1,15 +1,16 @@
-import { STATE, clearSelection, addTrack, duplicateTrack, createLinkedTrack, deleteTrack, TRACK_COLORS_PALETTE, loadParsedMIDI, getMaxTick, initHistory, performUndo, performRedo, saveHistory } from './state.js';
+import { STATE, clearSelection, addTrack, duplicateTrack, createLinkedTrack, deleteTrack, TRACK_COLORS_PALETTE, loadParsedMIDI, getMaxTick, initHistory, performUndo, performRedo, saveHistory, getSelectedNotes, deleteSelectedNotes } from './state.js';
 import { initRenderer, renderAll, startLerpAnimation } from './renderer.js';
-import { initEvents } from './events.js';
+import { initEvents, shiftPitch } from './events.js';
 import { updateReferenceVolume, loadReferenceAudio, updateMasterVolume } from './audio-engine.js';
 import { exportToMIDI, parseMIDI } from './midi-io.js';
+import { copyNotes, cutNotes, pasteNotes } from './clipboard.js';
 
 let editingTrackId = null; 
 let editingColorTrackId = null;
 let pendingMidiData = null; 
 
-// シンセ設定モーダルを開く前の状態を保持するための変数
 let initialSynthSettings = null; 
+const isMobile = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
 
 const ICON_FOLDER = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;margin-right:4px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`;
 const ICON_SETTINGS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
@@ -17,7 +18,7 @@ const ICON_MENU = `<svg viewBox="0 0 24 24" fill="currentColor" style="width:18p
 const ICON_DRAG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><line x1="4" y1="9" x2="20" y2="9"></line><line x1="4" y1="15" x2="20" y2="15"></line></svg>`;
 
 document.addEventListener('DOMContentLoaded', () => {
-    initHistory(); // 履歴管理の初期化
+    initHistory();
 
     const gridCvs = document.getElementById('grid-canvas');
     const keyCvs = document.getElementById('keyboard-canvas');
@@ -79,8 +80,50 @@ document.addEventListener('DOMContentLoaded', () => {
     setupSynthModal();
     setupColorPickerModal();
     setupMidiLoadModal(); 
+    setupMobilePanel(); // モバイル編集パネルの初期化
     setTool('draw');
 });
+
+// モバイル用編集パネルの表示更新
+export function updateMobilePanel() {
+    const panel = document.getElementById('mobile-edit-panel');
+    if (!panel) return;
+    
+    // モバイル(タッチデバイス)で、かつノートが選択されている場合のみ表示
+    if (isMobile && getSelectedNotes().length > 0) {
+        panel.classList.add('show');
+    } else {
+        panel.classList.remove('show');
+    }
+}
+
+// モバイル用編集パネルのイベント登録
+function setupMobilePanel() {
+    const btnCopy = document.getElementById('mbtn-copy');
+    const btnCut = document.getElementById('mbtn-cut');
+    const btnPaste = document.getElementById('mbtn-paste');
+    const btnDelete = document.getElementById('mbtn-delete');
+    
+    const btnUp12 = document.getElementById('mbtn-up12');
+    const btnUp1 = document.getElementById('mbtn-up1');
+    const btnDown1 = document.getElementById('mbtn-down1');
+    const btnDown12 = document.getElementById('mbtn-down12');
+
+    if (btnCopy) btnCopy.addEventListener('click', () => { copyNotes(); showToast("Copied"); });
+    if (btnCut) btnCut.addEventListener('click', () => { cutNotes(); renderAll(); updateMobilePanel(); showToast("Cut"); });
+    if (btnPaste) btnPaste.addEventListener('click', () => { pasteNotes(); renderAll(); updateMobilePanel(); showToast("Pasted"); });
+    if (btnDelete) btnDelete.addEventListener('click', () => {
+        deleteSelectedNotes();
+        saveHistory("Delete Selected");
+        renderAll();
+        updateMobilePanel();
+    });
+
+    if (btnUp12) btnUp12.addEventListener('click', () => shiftPitch(12));
+    if (btnUp1) btnUp1.addEventListener('click', () => shiftPitch(1));
+    if (btnDown1) btnDown1.addEventListener('click', () => shiftPitch(-1));
+    if (btnDown12) btnDown12.addEventListener('click', () => shiftPitch(-12));
+}
 
 export function showToast(message) {
     const container = document.getElementById('toast-container');
@@ -222,7 +265,6 @@ function setupToolbar() {
         btn.addEventListener('click', () => setTool(tool));
     });
 
-    // Undo / Redo ボタンの挙動
     const btnUndo = document.getElementById('btn-undo');
     const btnRedo = document.getElementById('btn-redo');
     
@@ -230,8 +272,9 @@ function setupToolbar() {
         btnUndo.addEventListener('click', () => {
             const msg = performUndo();
             if (msg) showToast(msg);
-            setupTrackPanel(); // トラックの増減が戻された場合に備えて再描画
+            setupTrackPanel(); 
             renderAll();
+            updateMobilePanel();
         });
     }
     
@@ -241,6 +284,7 @@ function setupToolbar() {
             if (msg) showToast(msg);
             setupTrackPanel();
             renderAll();
+            updateMobilePanel();
         });
     }
 
@@ -624,6 +668,7 @@ export function setupTrackPanel() {
                 document.querySelectorAll('.track-item').forEach(el => el.classList.remove('active'));
                 itemDiv.classList.add('active');
                 renderAll();
+                updateMobilePanel();
             }
         });
 
@@ -693,7 +738,6 @@ function stopDrag() {
         if (trackObj) newTracksArray.push(trackObj);
     });
     
-    // 配列の並び順が変わったかをチェックして履歴保存
     let orderChanged = false;
     for (let i = 0; i < STATE.tracks.length; i++) {
         if (STATE.tracks[i].id !== newTracksArray[i].id) {
@@ -935,7 +979,6 @@ function setupSynthModal() {
         modal.classList.remove('show');
         if (editingTrackId) {
             const track = STATE.tracks.find(t => t.id === editingTrackId);
-            // 変更があったかチェックして履歴保存
             if (JSON.stringify(initialSynthSettings) !== JSON.stringify(track)) {
                 saveHistory("Edit Synth Settings");
             }
@@ -950,7 +993,7 @@ function openSynthModal(trackId) {
     if (!track) return;
     
     editingTrackId = trackId;
-    initialSynthSettings = JSON.parse(JSON.stringify(track)); // 開いた時点の状態を記録
+    initialSynthSettings = JSON.parse(JSON.stringify(track)); 
     
     document.getElementById('modal-track-name').textContent = `${track.name} Settings`;
     document.getElementById('synth-waveform').value = track.waveform;
