@@ -98,7 +98,52 @@ export const STATE = {
     }
 };
 
-// スクロールバー動的同期のためのヘルパー関数
+// --- Undo/Redo History System ---
+export const History = {
+    states: [],
+    currentIndex: -1,
+    maxSize: 256
+};
+
+export function initHistory() {
+    History.states = [{ message: "Initial State", tracks: JSON.parse(JSON.stringify(STATE.tracks)) }];
+    History.currentIndex = 0;
+}
+
+export function saveHistory(message) {
+    History.states = History.states.slice(0, History.currentIndex + 1);
+    const snapshot = JSON.parse(JSON.stringify(STATE.tracks));
+    History.states.push({ message, tracks: snapshot });
+    
+    if (History.states.length > History.maxSize) {
+        History.states.shift();
+    } else {
+        History.currentIndex++;
+    }
+}
+
+export function performUndo() {
+    if (History.currentIndex > 0) {
+        History.currentIndex--;
+        const state = History.states[History.currentIndex];
+        STATE.tracks = JSON.parse(JSON.stringify(state.tracks));
+        const undoneMessage = History.states[History.currentIndex + 1].message;
+        return `Undo: ${undoneMessage}`;
+    }
+    return null;
+}
+
+export function performRedo() {
+    if (History.currentIndex < History.states.length - 1) {
+        History.currentIndex++;
+        const state = History.states[History.currentIndex];
+        STATE.tracks = JSON.parse(JSON.stringify(state.tracks));
+        return `Redo: ${state.message}`;
+    }
+    return null;
+}
+// --------------------------------
+
 export function getMaxTick() {
     let max = 0;
     STATE.tracks.forEach(track => {

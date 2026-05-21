@@ -1,9 +1,9 @@
-import { STATE, getSelectedNotes, deleteSelectedNotes } from './state.js';
+import { STATE, getSelectedNotes, deleteSelectedNotes, performUndo, performRedo, saveHistory } from './state.js';
 import { xToTick, getPitchAtY, getNoteAt, snapTick } from './utils.js';
 import { renderAll, startLerpAnimation } from './renderer.js'; 
 import { DrawTool, SelectTool, MuteTool, DeleteTool, editState } from './tools.js';
 import { copyNotes, cutNotes, pasteNotes } from './clipboard.js';
-import { setTool } from './main.js';
+import { setTool, showToast } from './main.js';
 import { initAudio, stopPreview, playPreview, stopAllSounds, startScheduler, stopReferenceAudio, playReferenceAudio } from './audio-engine.js';
 import { togglePlayback, stopPlayback } from './playback.js';
 
@@ -14,7 +14,6 @@ let isTimelineDragging = false;
 let lastMouseX = 0;
 let lastMouseY = 0;
 
-// リンクトラック選択中は編集操作をブロックするヘルパー
 function isEditingLocked() {
     const track = STATE.tracks.find(t => t.id === STATE.activeTrackId);
     return track && track.linkedTo !== null;
@@ -95,7 +94,7 @@ function onMouseDown(e) {
         return;
     }
 
-    if (isEditingLocked()) return; // リンクトラックならツール操作をブロック
+    if (isEditingLocked()) return; 
 
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
@@ -190,10 +189,11 @@ function updateCursor(mouseX, mouseY, rawTick) {
 
     const hoveredNote = getNoteAt(mouseX, mouseY);
     if (hoveredNote) {
-        // マウスホバー時のカーソル変更の判定も揃える
         const edgeHitTicks = 16 / STATE.zoomX;
         const noteEndTick = hoveredNote.tick + hoveredNote.duration;
-        if (rawTick >= noteEndTick - edgeHitTicks && rawTick <= noteEndTick + (6 / STATE.zoomX)) {
+        
+        // 判定幅を揃える
+        if (rawTick >= noteEndTick - edgeHitTicks && rawTick <= noteEndTick + edgeHitTicks) {
             canvasGrid.style.cursor = 'ew-resize';
         } else {
             canvasGrid.style.cursor = 'move';
@@ -236,12 +236,26 @@ function onKeyDown(e) {
         return;
     }
 
+    // Undo / Redo ショートカット
+    if (e.ctrlKey && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+            const msg = performRedo();
+            if (msg) showToast(msg);
+        } else {
+            const msg = performUndo();
+            if (msg) showToast(msg);
+        }
+        renderAll();
+        return; // 他のショートカットと競合しないように抜ける
+    }
+
     if (e.key.toLowerCase() === 'p') setTool('draw');
     if (e.key.toLowerCase() === 'e') setTool('select');
     if (e.key.toLowerCase() === 't') setTool('mute');
     if (e.key.toLowerCase() === 'd') setTool('delete');
 
-    if (isEditingLocked()) return; // これ以降の編集ショートカットをブロック
+    if (isEditingLocked()) return; 
 
     if (e.ctrlKey && e.key.toLowerCase() === 'a') {
         e.preventDefault();
@@ -249,8 +263,12 @@ function onKeyDown(e) {
         renderAll();
     }
     if (e.key === 'Delete' || e.key === 'Backspace') {
-        deleteSelectedNotes();
-        renderAll();
+        const selected = getSelectedNotes();
+        if (selected.length > 0) {
+            deleteSelectedNotes();
+            saveHistory("Delete Selected");
+            renderAll();
+        }
     }
 
     if (e.ctrlKey && e.key.toLowerCase() === 'c') copyNotes();
@@ -274,5 +292,7 @@ function shiftPitch(amount) {
     
     playPreview(selected[0].pitch, activeTrack);
     setTimeout(() => stopPreview(), 200);
+    
+    saveHistory(`Transpose (${amount > 0 ? '+' : ''}${amount})`);
     renderAll();
 }

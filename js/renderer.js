@@ -159,8 +159,7 @@ function renderGhostNotes() {
             ctxGrid.lineWidth = 1;
             
             ctxGrid.beginPath();
-            if (ctxGrid.roundRect) ctxGrid.roundRect(x, y + heightPadding, w, h - heightPadding * 2, 2);
-            else ctxGrid.rect(x, y + heightPadding, w, h - heightPadding * 2);
+            ctxGrid.rect(x, y + heightPadding, w, h - heightPadding * 2);
             ctxGrid.fill(); 
             ctxGrid.stroke();
         });
@@ -202,18 +201,17 @@ function renderNotes() {
         ctxGrid.lineWidth = lineWidth;
         
         ctxGrid.beginPath();
-        if (ctxGrid.roundRect) ctxGrid.roundRect(x, y + heightPadding, w, h - heightPadding * 2, 3);
-        else ctxGrid.rect(x, y + heightPadding, w, h - heightPadding * 2);
-        
+        // 角丸を削除し、ただの矩形にする
+        ctxGrid.rect(x, y + heightPadding, w, h - heightPadding * 2);
         ctxGrid.fill(); 
 
-        // 選択時のみ、右端のリサイズ領域をくっきり半透明（20%）で表示
         if (!isLinked && !note.muted && note.selected && w > 10) {
             ctxGrid.save(); 
             ctxGrid.clip(); 
 
             const handleWidth = Math.min(15, w / 2); 
-            ctxGrid.fillStyle = 'rgba(255, 255, 255, 0.2)'; // グラデーションをやめベタ塗りに
+            // 不透明度80%の白
+            ctxGrid.fillStyle = 'rgba(255, 255, 255, 0.8)';
             ctxGrid.fillRect(x + w - handleWidth, y + heightPadding, handleWidth, h - heightPadding * 2);
             
             ctxGrid.restore(); 
@@ -258,8 +256,7 @@ function renderDyingNotes() {
         ctxGrid.lineWidth = 2; 
         
         ctxGrid.beginPath();
-        if (ctxGrid.roundRect) ctxGrid.roundRect(x, y + heightPadding, w, h - heightPadding * 2, 3);
-        else ctxGrid.rect(x, y + heightPadding, w, h - heightPadding * 2);
+        ctxGrid.rect(x, y + heightPadding, w, h - heightPadding * 2);
         ctxGrid.stroke();
         ctxGrid.globalAlpha = 1.0; 
     });

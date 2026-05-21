@@ -1,4 +1,4 @@
-import { STATE, clearSelection, addTrack, duplicateTrack, createLinkedTrack, deleteTrack, TRACK_COLORS_PALETTE, loadParsedMIDI, getMaxTick } from './state.js';
+import { STATE, clearSelection, addTrack, duplicateTrack, createLinkedTrack, deleteTrack, TRACK_COLORS_PALETTE, loadParsedMIDI, getMaxTick, initHistory, performUndo, performRedo, saveHistory } from './state.js';
 import { initRenderer, renderAll, startLerpAnimation } from './renderer.js';
 import { initEvents } from './events.js';
 import { updateReferenceVolume, loadReferenceAudio, updateMasterVolume } from './audio-engine.js';
@@ -8,12 +8,17 @@ let editingTrackId = null;
 let editingColorTrackId = null;
 let pendingMidiData = null; 
 
+// シンセ設定モーダルを開く前の状態を保持するための変数
+let initialSynthSettings = null; 
+
 const ICON_FOLDER = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;margin-right:4px;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`;
 const ICON_SETTINGS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
 const ICON_MENU = `<svg viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px;"><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg>`;
 const ICON_DRAG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><line x1="4" y1="9" x2="20" y2="9"></line><line x1="4" y1="15" x2="20" y2="15"></line></svg>`;
 
 document.addEventListener('DOMContentLoaded', () => {
+    initHistory(); // 履歴管理の初期化
+
     const gridCvs = document.getElementById('grid-canvas');
     const keyCvs = document.getElementById('keyboard-canvas');
     const timeCvs = document.getElementById('timeline-canvas');
@@ -77,6 +82,27 @@ document.addEventListener('DOMContentLoaded', () => {
     setTool('draw');
 });
 
+export function showToast(message) {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+    toast.style.color = '#fff';
+    toast.style.padding = '8px 16px';
+    toast.style.borderRadius = '4px';
+    toast.style.fontSize = '12px';
+    toast.style.boxShadow = '0 2px 10px rgba(0,0,0,0.5)';
+    toast.style.opacity = '1';
+    toast.style.transition = 'opacity 0.5s ease-in-out';
+    toast.textContent = message;
+
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 500);
+    }, 2000);
+}
+
 function resizeCanvas() {
     const rollArea = document.getElementById('roll-area');
     const rect = rollArea.getBoundingClientRect();
@@ -85,9 +111,7 @@ function resizeCanvas() {
     const keyCvs = document.getElementById('keyboard-canvas');
     const timeCvs = document.getElementById('timeline-canvas');
 
-    // キーボード(80) + 垂直スクロールバー(14)
     const w = rect.width - 80 - 14; 
-    // タイムライン(30) + 水平スクロールバー(12)
     const h = rect.height - 30 - 12; 
 
     gridCvs.width = Math.max(0, w); 
@@ -106,7 +130,6 @@ function setupScrollbars() {
     let isDraggingH = false;
     let isDraggingV = false;
 
-    // 水平スクロール
     const startH = () => isDraggingH = true;
     scrollH.addEventListener('mousedown', startH);
     scrollH.addEventListener('touchstart', startH, {passive: true});
@@ -115,7 +138,6 @@ function setupScrollbars() {
         startLerpAnimation();
     });
 
-    // 垂直スクロール
     const startV = () => isDraggingV = true;
     scrollV.addEventListener('mousedown', startV);
     scrollV.addEventListener('touchstart', startV, {passive: true});
@@ -124,11 +146,9 @@ function setupScrollbars() {
         startLerpAnimation();
     });
 
-    // ドラッグ解除
     window.addEventListener('mouseup', () => { isDraggingH = false; isDraggingV = false; });
     window.addEventListener('touchend', () => { isDraggingH = false; isDraggingV = false; });
 
-    // Canvasの移動状態をスライダーに同期
     function syncScrollbars() {
         if (!isDraggingH) {
             const canvasGrid = document.getElementById('grid-canvas');
@@ -201,6 +221,28 @@ function setupToolbar() {
         const btn = document.getElementById(`btn-${tool}`);
         btn.addEventListener('click', () => setTool(tool));
     });
+
+    // Undo / Redo ボタンの挙動
+    const btnUndo = document.getElementById('btn-undo');
+    const btnRedo = document.getElementById('btn-redo');
+    
+    if (btnUndo) {
+        btnUndo.addEventListener('click', () => {
+            const msg = performUndo();
+            if (msg) showToast(msg);
+            setupTrackPanel(); // トラックの増減が戻された場合に備えて再描画
+            renderAll();
+        });
+    }
+    
+    if (btnRedo) {
+        btnRedo.addEventListener('click', () => {
+            const msg = performRedo();
+            if (msg) showToast(msg);
+            setupTrackPanel();
+            renderAll();
+        });
+    }
 
     const menuLoad = document.getElementById('menu-load-midi');
     const menuExportLinks = document.getElementById('menu-export-midi-links');
@@ -385,7 +427,7 @@ let dragStartY = 0;
 let dragScrollInterval = null;
 let longPressTimeout = null;
 
-function setupTrackPanel() {
+export function setupTrackPanel() {
     const trackList = document.getElementById('track-list');
     trackList.innerHTML = ''; 
 
@@ -429,6 +471,7 @@ function setupTrackPanel() {
             const newName = prompt("Enter new track name:", track.name);
             if (newName && newName.trim() !== '') {
                 track.name = newName.trim();
+                saveHistory("Rename Track");
                 setupTrackPanel();
             }
         });
@@ -592,6 +635,7 @@ function setupTrackPanel() {
     addBtn.textContent = '+ Add Track';
     addBtn.addEventListener('click', () => {
         addTrack();
+        saveHistory("Add Track");
         setupTrackPanel();
     });
     trackList.appendChild(addBtn);
@@ -648,7 +692,18 @@ function stopDrag() {
         const trackObj = STATE.tracks.find(t => t.id === id);
         if (trackObj) newTracksArray.push(trackObj);
     });
+    
+    // 配列の並び順が変わったかをチェックして履歴保存
+    let orderChanged = false;
+    for (let i = 0; i < STATE.tracks.length; i++) {
+        if (STATE.tracks[i].id !== newTracksArray[i].id) {
+            orderChanged = true; break;
+        }
+    }
+
     STATE.tracks = newTracksArray;
+
+    if (orderChanged) saveHistory("Reorder Tracks");
 
     if (dragGhost) {
         dragGhost.remove();
@@ -720,6 +775,7 @@ function showTrackMenu(e, trackId) {
     document.getElementById('ctx-menu-duplicate').onclick = (ev) => {
         ev.preventDefault();
         duplicateTrack(trackId);
+        saveHistory("Duplicate Track");
         setupTrackPanel();
         renderAll();
         menu.classList.remove('show');
@@ -728,6 +784,7 @@ function showTrackMenu(e, trackId) {
     document.getElementById('ctx-menu-link').onclick = (ev) => {
         ev.preventDefault();
         createLinkedTrack(trackId);
+        saveHistory("Link Track");
         setupTrackPanel();
         renderAll();
         menu.classList.remove('show');
@@ -736,6 +793,7 @@ function showTrackMenu(e, trackId) {
     document.getElementById('ctx-menu-delete').onclick = (ev) => {
         ev.preventDefault();
         deleteTrack(trackId);
+        saveHistory("Delete Track");
         setupTrackPanel();
         renderAll();
         menu.classList.remove('show');
@@ -875,7 +933,15 @@ function setupSynthModal() {
 
     closeBtn.addEventListener('click', () => {
         modal.classList.remove('show');
+        if (editingTrackId) {
+            const track = STATE.tracks.find(t => t.id === editingTrackId);
+            // 変更があったかチェックして履歴保存
+            if (JSON.stringify(initialSynthSettings) !== JSON.stringify(track)) {
+                saveHistory("Edit Synth Settings");
+            }
+        }
         editingTrackId = null;
+        initialSynthSettings = null;
     });
 }
 
@@ -884,6 +950,7 @@ function openSynthModal(trackId) {
     if (!track) return;
     
     editingTrackId = trackId;
+    initialSynthSettings = JSON.parse(JSON.stringify(track)); // 開いた時点の状態を記録
     
     document.getElementById('modal-track-name').textContent = `${track.name} Settings`;
     document.getElementById('synth-waveform').value = track.waveform;
@@ -916,9 +983,10 @@ function setupColorPickerModal() {
         cell.addEventListener('click', () => {
             if (editingColorTrackId) {
                 const track = STATE.tracks.find(t => t.id === editingColorTrackId);
-                if (track) {
+                if (track && track.color !== colorObj.fill) {
                     track.color = colorObj.fill;
                     track.borderColor = colorObj.border;
+                    saveHistory("Change Track Color");
                     setupTrackPanel(); 
                     renderAll(); 
                 }
@@ -958,6 +1026,8 @@ function setupMidiLoadModal() {
         }
         
         loadParsedMIDI(pendingMidiData, trackMode === 'append', bpmMode === 'use_midi', mismatchAction);
+        
+        saveHistory("Load MIDI File");
         
         setupTrackPanel();
         renderAll();
