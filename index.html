@@ -44,7 +44,8 @@
             padding: 4px 10px; cursor: pointer; border-radius: 3px; font-size: 12px;
             display: flex; align-items: center; gap: 5px;
         }
-        .tool-btn svg { width: 14px; height: 14px; fill: currentColor; stroke: currentColor; stroke-width: 0; }
+        /* アイコンの表示崩れを防ぐため、強制的なfill/stroke指定を削除 */
+        .tool-btn svg { width: 14px; height: 14px; }
         
         .tool-btn:hover { background-color: #4b5155; }
         .tool-btn.active { background-color: #ff6600; color: #fff; border-color: #cc5200; font-weight: bold; }
@@ -168,7 +169,6 @@
         .track-vol-container label { font-size: 10px; color: #888; }
         .track-vol { flex-grow: 1; accent-color: #ff6600; cursor: pointer; height: 4px; }
         
-        /* 判定領域を広げるための変更 */
         .track-drag-handle {
             cursor: grab;
             display: flex; align-items: center; justify-content: center;
@@ -199,7 +199,8 @@
         #keyboard-canvas { width: 80px; background-color: #1e2122; border-right: 1px solid #1a1c1d; flex-shrink: 0; touch-action: none; cursor: pointer; }
         #grid-canvas { flex: 1; background-color: #1e2122; outline: none; touch-action: none; }
         
-        #v-scroll-container { width: 14px; background-color: #1e2122; border-left: 1px solid #111; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; padding: 4px 0; }
+        /* 縦スクロールバーのコンテナを相対配置に変更 */
+        #v-scroll-container { width: 14px; background-color: #1e2122; border-left: 1px solid #111; flex-shrink: 0; position: relative; }
         
         .custom-scrollbar {
             -webkit-appearance: none; background: transparent; width: 100%; height: 100%; margin: 0; outline: none;
@@ -213,8 +214,17 @@
         
         #scroll-h.custom-scrollbar::-webkit-slider-runnable-track { height: 8px; }
         #scroll-h.custom-scrollbar::-webkit-slider-thumb { height: 8px; width: 60px; margin-top: 0px; }
-        #scroll-v.custom-scrollbar { -webkit-appearance: slider-vertical; width: 8px; }
         
+        /* 縦スクロールバーをCSSで90度回転して配置 */
+        #scroll-v.custom-scrollbar { 
+            position: absolute;
+            height: 8px;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%) rotate(-90deg);
+        }
+        #scroll-v.custom-scrollbar::-webkit-slider-runnable-track { height: 8px; }
+        #scroll-v.custom-scrollbar::-webkit-slider-thumb { height: 8px; width: 40px; margin-top: 0px; }
+
         .modal-overlay {
             display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background-color: #2c3032; border: 1px solid #555; border-radius: 8px; padding: 20px;
@@ -290,7 +300,7 @@
 <div id="app-container">
     <div id="toolbar">
         <button class="tool-btn" id="btn-toggle-panel" title="Toggle Track Panel">
-            <svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
         </button>
         
         <div class="tool-btn-group">
@@ -301,36 +311,36 @@
 
         <div class="tool-btn-group">
             <button class="tool-btn" id="btn-undo" title="Undo (Ctrl+Z)">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"></polyline><path d="M20 20v-7a4 4 0 0 0-4-4H4"></path></svg>
+                <!-- 矢印アイコンに変更 -->
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg>
             </button>
             <button class="tool-btn" id="btn-redo" title="Redo (Ctrl+Shift+Z)">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 14 20 9 15 4"></polyline><path d="M4 20v-7a4 4 0 0 1 4-4h12"></path></svg>
+                <!-- 矢印アイコンに変更 -->
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5v0A5.5 5.5 0 0 0 9.5 20H13"/></svg>
             </button>
         </div>
         
         <div class="tool-btn-group">
             <button class="tool-btn active" id="btn-draw" title="Draw (P)">
-                <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path><path d="M2 2l7.586 7.586"></path><circle cx="11" cy="11" r="2"></circle></svg> Draw
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path><path d="M2 2l7.586 7.586"></path><circle cx="11" cy="11" r="2"></circle></svg> Draw
             </button>
             <button class="tool-btn" id="btn-select" title="Select (E)">
-                <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg> Select
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg> Select
             </button>
             <button class="tool-btn" id="btn-mute" title="Mute (T)">
-                <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg> Mute
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg> Mute
             </button>
             <button class="tool-btn" id="btn-delete" title="Delete (D)">
-                <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> Delete
+                <!-- 消しゴムアイコンに変更 -->
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H7L3 16C2.5 15.5 2.5 14.5 3 14L13 4C13.5 3.5 14.5 3.5 15 4L20 9C20.5 9.5 20.5 10.5 20 11L11 20H20V20Z"/><line x1="18" y1="13" x2="11" y2="20"/></svg> Delete
             </button>
         </div>
         
         <div style="display:flex; align-items:center; gap:10px;">
             <div style="display:flex; align-items:center; gap:4px;">
                 <label for="snap-select" class="toolbar-label" title="Snap">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M4 11V9a8 8 0 0 1 16 0v2"></path>
-                        <path d="M4 11h5v4H4z" fill="currentColor"></path>
-                        <path d="M15 11h5v4h-5z" fill="currentColor"></path>
-                    </svg>
+                    <!-- 磁石アイコンに変更 -->
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v5a8 8 0 0 0 16 0V9"/><path d="M4 4h4v5H4z"/><path d="M16 4h4v5h-4z"/></svg>
                 </label>
                 <select id="snap-select">
                     <option value="384">Bar</option>
@@ -346,21 +356,21 @@
             
             <div style="display:flex; align-items:center; gap:4px;">
                 <label for="bpm-input" class="toolbar-label" title="BPM">
-                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
                 </label>
                 <input type="number" id="bpm-input" value="120" min="20" max="300">
             </div>
 
             <div class="tool-btn-group" style="padding: 0 5px; gap:4px;">
                 <label for="transpose-input" class="toolbar-label" title="Global Transpose">
-                    <svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
                 </label>
                 <input type="number" id="transpose-input" value="0" min="-24" max="24" style="width: 35px;">
             </div>
 
             <div class="tool-btn-group" style="padding: 0 5px; gap:4px;">
                 <label for="master-vol-slider" class="toolbar-label" title="Master Volume">
-                    <svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
                 </label>
                 <input type="range" id="master-vol-slider" min="0" max="150" value="100" style="width: 100px; accent-color: #ff6600;">
             </div>
@@ -370,7 +380,7 @@
         
         <div class="dropdown">
             <button class="tool-btn dropdown-btn" title="File Menu">
-                <svg viewBox="0 0 24 24" fill="none" stroke-width="2" style="margin-right:4px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg> File ▼
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg> File ▼
             </button>
             <div class="dropdown-content">
                 <a href="#" id="menu-load-midi">Load MIDI...</a>
@@ -421,7 +431,6 @@
     <a href="#" id="ctx-menu-delete" class="danger">Delete</a>
 </div>
 
-<!-- その他のモーダルは省略せずに記載 -->
 <div class="modal-overlay" id="synth-modal">
     <div class="modal-title" id="modal-track-name">Track Settings</div>
     <div class="modal-row">
@@ -518,12 +527,15 @@
         <svg viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
     </button>
     <button class="m-edit-btn" id="mbtn-delete" title="Delete">
-        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        <!-- 消しゴムアイコンに変更 -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H7L3 16C2.5 15.5 2.5 14.5 3 14L13 4C13.5 3.5 14.5 3.5 15 4L20 9C20.5 9.5 20.5 10.5 20 11L11 20H20V20Z"/><line x1="18" y1="13" x2="11" y2="20"/></svg>
     </button>
+    
+    <!-- 配置順序の変更 -->
     <button class="m-edit-btn" id="mbtn-up12">+12</button>
+    <button class="m-edit-btn" id="mbtn-down12">-12</button>
     <button class="m-edit-btn" id="mbtn-up1">+1</button>
     <button class="m-edit-btn" id="mbtn-down1">-1</button>
-    <button class="m-edit-btn" id="mbtn-down12">-12</button>
 </div>
 
 <script>
