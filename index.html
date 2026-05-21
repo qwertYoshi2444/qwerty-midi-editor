@@ -181,32 +181,40 @@
             color: #aaa; cursor: pointer; border-radius: 4px; text-align: center; font-size: 12px;
         }
         #btn-add-track:hover { background-color: #4b5155; color: #fff; border-color: #888; }
-        
-        /* スクロール用スライダーのスタイル */
-        .overlay-scroll-h {
-            position: absolute; bottom: 0; left: 80px; width: calc(100% - 92px); height: 12px;
-            z-index: 10; accent-color: #666; background: transparent; cursor: pointer; margin: 0; padding: 0;
-            -webkit-appearance: none;
-        }
-        .overlay-scroll-h::-webkit-slider-runnable-track { background: rgba(0,0,0,0.4); height: 8px; border-radius: 4px; }
-        .overlay-scroll-h::-webkit-slider-thumb { -webkit-appearance: none; background: #666; height: 12px; width: 40px; border-radius: 6px; margin-top: -2px; }
-        .overlay-scroll-h:active::-webkit-slider-thumb { background: #ff6600; }
-        
-        .overlay-scroll-v {
-            position: absolute; top: 30px; right: 0; height: calc(100% - 42px); width: 12px;
-            z-index: 10; accent-color: #666; background: rgba(0,0,0,0.3); cursor: pointer; margin: 0; padding: 0;
-            -webkit-appearance: slider-vertical; /* 縦スライダー用 */
-        }
-        
-        #roll-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; position: relative; }
+
+        #roll-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; background-color: #1a1c1d; }
         
         #timeline-container { height: 30px; display: flex; flex-shrink: 0; }
         #timeline-corner { width: 80px; background-color: #3b4043; border-right: 1px solid #1a1c1d; border-bottom: 1px solid #1a1c1d; flex-shrink: 0; }
         #timeline-canvas { flex: 1; background-color: #3b4043; border-bottom: 1px solid #1a1c1d; touch-action: none; cursor: pointer; }
         
+        #h-scroll-container { height: 12px; display: flex; flex-shrink: 0; background-color: #1e2122; border-bottom: 1px solid #111; }
+        #h-scroll-spacer { width: 80px; flex-shrink: 0; border-right: 1px solid #1a1c1d; background-color: #1e2122; }
+        #h-scroll-track { flex: 1; display: flex; align-items: center; padding: 0 4px; }
+        
+        #grid-layout { display: flex; flex: 1; overflow: hidden; }
         #grid-container { display: flex; flex: 1; overflow: hidden; }
         #keyboard-canvas { width: 80px; background-color: #1e2122; border-right: 1px solid #1a1c1d; flex-shrink: 0; touch-action: none; cursor: pointer; }
         #grid-canvas { flex: 1; background-color: #1e2122; outline: none; touch-action: none; }
+        
+        #v-scroll-container { width: 14px; background-color: #1e2122; border-left: 1px solid #111; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; padding: 4px 0; }
+        
+        .custom-scrollbar {
+            -webkit-appearance: none; background: transparent; width: 100%; height: 100%; margin: 0; outline: none;
+        }
+        .custom-scrollbar::-webkit-slider-runnable-track {
+            background: #111; border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-slider-thumb {
+            -webkit-appearance: none; background: #555; border: 1px solid #333; border-radius: 4px; cursor: pointer;
+        }
+        .custom-scrollbar::-webkit-slider-thumb:hover { background: #777; }
+        .custom-scrollbar:active::-webkit-slider-thumb { background: #ff6600; border-color: #cc5200; }
+        
+        #scroll-h.custom-scrollbar::-webkit-slider-runnable-track { height: 8px; }
+        #scroll-h.custom-scrollbar::-webkit-slider-thumb { height: 8px; width: 60px; margin-top: 0px; }
+        
+        #scroll-v.custom-scrollbar { -webkit-appearance: slider-vertical; width: 8px; }
         
         .modal-overlay {
             display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -249,6 +257,12 @@
         }
         #midi-mismatch-warning label { cursor: pointer; display: flex; align-items: center; gap: 6px; margin-bottom: 6px; color: #eee; }
         #midi-mismatch-warning label:last-child { margin-bottom: 0; }
+
+        /* Undo/Redo用のToast（右下通知）スタイル */
+        #toast-container {
+            position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; 
+            gap: 8px; z-index: 9999; pointer-events: none;
+        }
     </style>
 </head>
 <body>
@@ -262,6 +276,16 @@
         <div class="tool-btn-group">
             <button class="tool-btn" id="btn-play" title="Play/Stop (Space)">
                 <svg viewBox="0 0 24 24" fill="currentColor" id="icon-play"><path d="M8 5v14l11-7z"/></svg> <span id="label-play">Play</span>
+            </button>
+        </div>
+
+        <!-- Undo/Redo ボタン追加 -->
+        <div class="tool-btn-group">
+            <button class="tool-btn" id="btn-undo" title="Undo (Ctrl+Z)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"></polyline><path d="M20 20v-7a4 4 0 0 0-4-4H4"></path></svg>
+            </button>
+            <button class="tool-btn" id="btn-redo" title="Redo (Ctrl+Shift+Z)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 14 20 9 15 4"></polyline><path d="M4 20v-7a4 4 0 0 1 4-4h12"></path></svg>
             </button>
         </div>
         
@@ -319,7 +343,6 @@
                 <label for="master-vol-slider" class="toolbar-label" title="Master Volume">
                     <svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
                 </label>
-                <!-- 幅を100pxに拡張 -->
                 <input type="range" id="master-vol-slider" min="0" max="150" value="100" style="width: 100px; accent-color: #ff6600;">
             </div>
         </div>
@@ -352,13 +375,24 @@
                 <div id="timeline-corner"></div>
                 <canvas id="timeline-canvas"></canvas>
             </div>
-            <div id="grid-container">
-                <canvas id="keyboard-canvas"></canvas>
-                <canvas id="grid-canvas" tabindex="0"></canvas>
+            
+            <div id="h-scroll-container">
+                <div id="h-scroll-spacer"></div>
+                <div id="h-scroll-track">
+                    <input type="range" id="scroll-h" class="custom-scrollbar" min="0" max="2000" step="1" value="0">
+                </div>
             </div>
-            <!-- オーバーレイスクロールバー -->
-            <input type="range" id="scroll-h" class="overlay-scroll-h" min="0" max="2000" step="1" value="0">
-            <input type="range" id="scroll-v" class="overlay-scroll-v" min="0" max="127" step="0.1" value="84">
+
+            <div id="grid-layout">
+                <div id="grid-container">
+                    <canvas id="keyboard-canvas"></canvas>
+                    <canvas id="grid-canvas" tabindex="0"></canvas>
+                </div>
+                <div id="v-scroll-container">
+                    <input type="range" id="scroll-v" class="custom-scrollbar" min="0" max="127" step="0.1" value="84">
+                </div>
+            </div>
+            
         </div>
     </div>
 </div>
@@ -370,7 +404,7 @@
 </div>
 
 <div class="modal-overlay" id="synth-modal">
-    <!-- モーダル内容は変更なし -->
+    <!-- 省略せずに記載 -->
     <div class="modal-title" id="modal-track-name">Track Settings</div>
     <div class="modal-row">
         <label>Transpose</label>
@@ -387,7 +421,6 @@
             <option value="pulse12">Pulse 12.5%</option>
         </select>
     </div>
-    
     <div class="synth-knobs">
         <div class="knob-wrapper" data-param="attack">
             <div class="knob">
@@ -452,6 +485,9 @@
         <button class="modal-btn primary" id="btn-midi-confirm">Load</button>
     </div>
 </div>
+
+<!-- Undo/Redo通知用コンテナ追加 -->
+<div id="toast-container"></div>
 
 <script>
     if ('serviceWorker' in navigator) {
