@@ -182,7 +182,23 @@
         }
         #btn-add-track:hover { background-color: #4b5155; color: #fff; border-color: #888; }
         
-        #roll-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+        /* スクロール用スライダーのスタイル */
+        .overlay-scroll-h {
+            position: absolute; bottom: 0; left: 80px; width: calc(100% - 92px); height: 12px;
+            z-index: 10; accent-color: #666; background: transparent; cursor: pointer; margin: 0; padding: 0;
+            -webkit-appearance: none;
+        }
+        .overlay-scroll-h::-webkit-slider-runnable-track { background: rgba(0,0,0,0.4); height: 8px; border-radius: 4px; }
+        .overlay-scroll-h::-webkit-slider-thumb { -webkit-appearance: none; background: #666; height: 12px; width: 40px; border-radius: 6px; margin-top: -2px; }
+        .overlay-scroll-h:active::-webkit-slider-thumb { background: #ff6600; }
+        
+        .overlay-scroll-v {
+            position: absolute; top: 30px; right: 0; height: calc(100% - 42px); width: 12px;
+            z-index: 10; accent-color: #666; background: rgba(0,0,0,0.3); cursor: pointer; margin: 0; padding: 0;
+            -webkit-appearance: slider-vertical; /* 縦スライダー用 */
+        }
+        
+        #roll-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; position: relative; }
         
         #timeline-container { height: 30px; display: flex; flex-shrink: 0; }
         #timeline-corner { width: 80px; background-color: #3b4043; border-right: 1px solid #1a1c1d; border-bottom: 1px solid #1a1c1d; flex-shrink: 0; }
@@ -303,7 +319,8 @@
                 <label for="master-vol-slider" class="toolbar-label" title="Master Volume">
                     <svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
                 </label>
-                <input type="range" id="master-vol-slider" min="0" max="150" value="100" style="width: 60px; accent-color: #ff6600;">
+                <!-- 幅を100pxに拡張 -->
+                <input type="range" id="master-vol-slider" min="0" max="150" value="100" style="width: 100px; accent-color: #ff6600;">
             </div>
         </div>
         
@@ -339,6 +356,9 @@
                 <canvas id="keyboard-canvas"></canvas>
                 <canvas id="grid-canvas" tabindex="0"></canvas>
             </div>
+            <!-- オーバーレイスクロールバー -->
+            <input type="range" id="scroll-h" class="overlay-scroll-h" min="0" max="2000" step="1" value="0">
+            <input type="range" id="scroll-v" class="overlay-scroll-v" min="0" max="127" step="0.1" value="84">
         </div>
     </div>
 </div>
@@ -350,13 +370,12 @@
 </div>
 
 <div class="modal-overlay" id="synth-modal">
+    <!-- モーダル内容は変更なし -->
     <div class="modal-title" id="modal-track-name">Track Settings</div>
-    
     <div class="modal-row">
         <label>Transpose</label>
         <input type="number" id="synth-transpose" value="0" min="-48" max="48">
     </div>
-
     <div class="modal-row" style="margin-bottom: 20px;">
         <label>Waveform</label>
         <select id="synth-waveform">
@@ -395,7 +414,6 @@
             <div class="knob-label">Release</div><div class="knob-value-disp">5ms</div>
         </div>
     </div>
-    
     <button class="modal-btn primary" id="modal-close" style="width: 100%; margin-top: 25px;">Done</button>
 </div>
 
@@ -407,17 +425,14 @@
 
 <div class="modal-overlay" id="midi-load-modal">
     <div class="modal-title" style="font-size: 15px;">Load MIDI File</div>
-    
     <div style="font-size: 13px; font-weight: bold; margin-bottom: 4px; color: #fff;" id="midi-info-title">Parsing file...</div>
     <div style="font-size: 12px; margin-bottom: 15px; color: #aaa;" id="midi-info-text"></div>
-    
     <div id="midi-mismatch-warning">
         <div style="color: #ff6666; font-weight: bold; margin-bottom: 6px;">⚠️ Mismatched Link Data Detected</div>
         <div class="mismatch-count-msg" style="margin-bottom: 8px;"></div>
         <label><input type="radio" name="mismatch-action" value="keep" checked> Force Keep Links (Override notes)</label>
         <label><input type="radio" name="mismatch-action" value="independent"> Import as Independent Tracks</label>
     </div>
-
     <div class="modal-row">
         <label>Tracks:</label>
         <select id="midi-load-track-mode">
