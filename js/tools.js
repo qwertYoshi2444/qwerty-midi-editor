@@ -12,7 +12,7 @@ export const editState = {
     originalNotesData:[],
     processedNoteIds: new Set(),
     lastPreviewPitch: -1,
-    hasChanged: false // 履歴保存の判定用
+    hasChanged: false 
 };
 
 function updateSelectionBox() {
@@ -84,15 +84,17 @@ export const DrawTool = {
                     clickedNote.selected = true;
                 }
 
-                const edgeHitTicks = 16 / STATE.zoomX; 
-                const noteEndTick = clickedNote.tick + clickedNote.duration;
-                
                 let canResize = true;
+                // 一度選択しないと伸縮できない仕様の維持
                 if (isMobile && !wasSelectedBeforeClick) {
                     canResize = false;
                 }
 
-                // 判定位置を「右端から内側へ16px、外側へ16px」に広げて掴みやすくする
+                // リサイズの判定領域: モバイル時は前後均等に32px（PCは16px）に拡大して掴みやすくする
+                const edgeHitPixels = isMobile ? 32 : 16;
+                const edgeHitTicks = edgeHitPixels / STATE.zoomX; 
+                const noteEndTick = clickedNote.tick + clickedNote.duration;
+                
                 if (canResize && rawTick >= noteEndTick - edgeHitTicks && rawTick <= noteEndTick + edgeHitTicks) {
                     editState.action = 'resize';
                 } else {

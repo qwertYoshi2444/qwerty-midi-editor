@@ -16,8 +16,14 @@ let lastMouseY = 0;
 
 // ジェスチャー管理用変数
 let isPinching = false;
-let lastPinchDistance = 0;
+let lastPinchDistanceX = 0;
+let lastPinchDistanceY = 0;
 let lastPinchCenter = { centerX: 0, centerY: 0 };
+
+// 1本指タッチ（マウスエミュレート）用変数
+let activeTouchId = null;
+let lastTouchX = 0;
+let lastTouchY = 0;
 
 function isEditingLocked() {
     const track = STATE.tracks.find(t => t.id === STATE.activeTrackId);
@@ -38,11 +44,11 @@ export function initEvents(gridCvs) {
         canvasGrid.addEventListener('mousedown', onMouseDown);
         canvasGrid.addEventListener('wheel', onWheel, { passive: false });
         
-        // モバイル向けタッチジェスチャーの登録
+        // モバイル向けタッチジェスチャーの登録 (passive: false で preventDefault を許可)
         canvasGrid.addEventListener('touchstart', onTouchStart, { passive: false });
         canvasGrid.addEventListener('touchmove', onTouchMove, { passive: false });
-        canvasGrid.addEventListener('touchend', onTouchEnd);
-        canvasGrid.addEventListener('touchcancel', onTouchEnd);
+        canvasGrid.addEventListener('touchend', onTouchEnd, { passive: false });
+        canvasGrid.addEventListener('touchcancel', onTouchEnd, { passive: false });
     }
     
     window.addEventListener('mousemove', onMouseMove);
@@ -94,26 +100,38 @@ function updatePlayheadFromMouse(clientX) {
 }
 
 function getPinchInfo(touches) {
-    const dx = touches[0].clientX - touches[1].clientX;
-    const dy = touches[0].clientY - touches[1].clientY;
-    const dist = Math.sqrt(dx*dx + dy*dy);
+    const dx = Math.abs(touches[0].clientX - touches[1].clientX);
+    const dy = Math.abs(touches[0].clientY - touches[1].clientY);
+    const distX = Math.max(10, dx); // 0除算や極端な拡大を防ぐ
+    const distY = Math.max(10, dy);
     const centerX = (touches[0].clientX + touches[1].clientX) / 2;
     const centerY = (touches[0].clientY + touches[1].clientY) / 2;
-    return { dist, centerX, centerY };
+    return { distX, distY, centerX, centerY };
 }
 
 function onTouchStart(e) {
     if (e.touches.length === 2) {
-        e.preventDefault(); // 1本指のMouseエミュレーションをキャンセル
+        e.preventDefault(); 
         isPinching = true;
+        activeTouchId = null; // 1本指操作をキャンセル
         
         // 編集状態を強制キャンセル
         resetEditState();
         STATE.selectionBox.active = false;
         
         const info = getPinchInfo(e.touches);
-        lastPinchDistance = info.dist;
+        lastPinchDistanceX = info.distX;
+        lastPinchDistanceY = info.distY;
         lastPinchCenter = info;
+    } else if (e.touches.length === 1) {
+        isPinching = false;
+        activeTouchId = e.changedTouches[0].identifier;
+        lastTouchX = e.changedTouches[0].clientX;
+        lastTouchY = e.changedTouches[0].clientY;
+        
+        // 疑似的なマウスイベントを発火
+        const synthEvent = { clientX: lastTouchX, clientY: lastTouchY, button: 0, ctrlKey: false, shiftKey: false, altKey: false };
+        onMouseDown(synthEvent);
     }
 }
 
@@ -128,32 +146,56 @@ function onTouchMove(e) {
         STATE.targetScrollTick = Math.max(0, STATE.targetScrollTick - deltaX / STATE.targetZoomX);
         STATE.targetScrollPitch = Math.min(127, Math.max(10, STATE.targetScrollPitch + deltaY / STATE.targetZoomY));
 
-        // ピンチズーム
-        const scale = info.dist / lastPinchDistance;
-        const oldZoomX = STATE.targetZoomX;
-        const oldZoomY = STATE.targetZoomY;
-
-        STATE.targetZoomX = Math.max(0.05, Math.min(10, STATE.targetZoomX * scale));
-        STATE.targetZoomY = Math.max(5, Math.min(50, STATE.targetZoomY * scale));
-
-        // ズームの中心（指の真ん中）がズレないようにScrollを補正
+        // ズームの中心（指の真ん中）がズレないようにScrollを補正する関数
         const rect = canvasGrid.getBoundingClientRect();
         const canvasX = info.centerX - rect.left;
         const canvasY = info.centerY - rect.top;
 
-        STATE.targetScrollTick += (canvasX / oldZoomX) - (canvasX / STATE.targetZoomX);
-        STATE.targetScrollPitch -= (canvasY / oldZoomY) - (canvasY / STATE.targetZoomY);
+        // X軸（時間方向）の独立ピンチズーム
+        if (lastPinchDistanceX > 15 && info.distX > 15) {
+            const scaleX = info.distX / lastPinchDistanceX;
+            const oldZoomX = STATE.targetZoomX;
+            STATE.targetZoomX = Math.max(0.05, Math.min(10, STATE.targetZoomX * scaleX));
+            STATE.targetScrollTick += (canvasX / oldZoomX) - (canvasX / STATE.targetZoomX);
+        }
 
-        lastPinchDistance = info.dist;
+        // Y軸（ピッチ方向）の独立ピンチズーム
+        if (lastPinchDistanceY > 15 && info.distY > 15) {
+            const scaleY = info.distY / lastPinchDistanceY;
+            const oldZoomY = STATE.targetZoomY;
+            STATE.targetZoomY = Math.max(5, Math.min(50, STATE.targetZoomY * scaleY));
+            STATE.targetScrollPitch -= (canvasY / oldZoomY) - (canvasY / STATE.targetZoomY);
+        }
+
+        lastPinchDistanceX = info.distX;
+        lastPinchDistanceY = info.distY;
         lastPinchCenter = info;
 
         startLerpAnimation();
+    } else if (e.touches.length === 1 && activeTouchId !== null) {
+        e.preventDefault(); // ここでスクロールを止めることで「なぞる」操作が可能になる
+        
+        const touch = Array.from(e.changedTouches).find(t => t.identifier === activeTouchId);
+        if (touch) {
+            lastTouchX = touch.clientX;
+            lastTouchY = touch.clientY;
+            const synthEvent = { clientX: lastTouchX, clientY: lastTouchY, button: 0, ctrlKey: false, shiftKey: false, altKey: false };
+            onMouseMove(synthEvent);
+        }
     }
 }
 
 function onTouchEnd(e) {
-    if (e.touches.length < 2) {
+    if (isPinching && e.touches.length < 2) {
         isPinching = false;
+    }
+    
+    // 追跡していた1本指が離れた場合
+    const touch = Array.from(e.changedTouches).find(t => t.identifier === activeTouchId);
+    if (touch) {
+        activeTouchId = null;
+        const synthEvent = { clientX: lastTouchX, clientY: lastTouchY, button: 0, ctrlKey: false, shiftKey: false, altKey: false };
+        onMouseUp(synthEvent);
     }
 }
 
@@ -170,7 +212,7 @@ function onMouseDown(e) {
     if (e.button === 1) {
         isMiddleDragging = true;
         document.body.style.cursor = 'grabbing';
-        e.preventDefault(); 
+        if (e.preventDefault) e.preventDefault(); 
         return;
     }
 
@@ -233,7 +275,7 @@ function onMouseUp(e) {
         return;
     }
 
-    if (e.button === 1) {
+    if (e && e.button === 1) {
         isMiddleDragging = false;
         document.body.style.cursor = 'default';
         return;
@@ -246,7 +288,7 @@ function onMouseUp(e) {
         else if (STATE.currentTool === 'delete') DeleteTool.onMouseUp();
     }
 
-    if (canvasGrid && !isPinching) {
+    if (canvasGrid && !isPinching && e) {
         const rect = canvasGrid.getBoundingClientRect();
         const mouseX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
         const mouseY = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
@@ -254,7 +296,7 @@ function onMouseUp(e) {
     }
     
     renderAll();
-    updateMobilePanel(); // 選択状態が変わった可能性があるのでUIを更新
+    updateMobilePanel(); 
 }
 
 function updateCursor(mouseX, mouseY, rawTick) {
@@ -270,7 +312,9 @@ function updateCursor(mouseX, mouseY, rawTick) {
 
     const hoveredNote = getNoteAt(mouseX, mouseY);
     if (hoveredNote) {
-        const edgeHitTicks = 16 / STATE.zoomX;
+        const isMobile = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
+        const edgeHitPixels = isMobile ? 32 : 16;
+        const edgeHitTicks = edgeHitPixels / STATE.zoomX;
         const noteEndTick = hoveredNote.tick + hoveredNote.duration;
         
         if (rawTick >= noteEndTick - edgeHitTicks && rawTick <= noteEndTick + edgeHitTicks) {
@@ -363,7 +407,6 @@ function onKeyDown(e) {
     if (e.shiftKey && e.key === 'ArrowDown') { shiftPitch(-1); e.preventDefault(); }
 }
 
-// 外部（モバイルパネル）から呼び出せるようにexport
 export function shiftPitch(amount) {
     const selected = getSelectedNotes();
     if (selected.length === 0) return;

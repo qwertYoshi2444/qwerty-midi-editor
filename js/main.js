@@ -80,16 +80,14 @@ document.addEventListener('DOMContentLoaded', () => {
     setupSynthModal();
     setupColorPickerModal();
     setupMidiLoadModal(); 
-    setupMobilePanel(); // モバイル編集パネルの初期化
+    setupMobilePanel(); 
     setTool('draw');
 });
 
-// モバイル用編集パネルの表示更新
 export function updateMobilePanel() {
     const panel = document.getElementById('mobile-edit-panel');
     if (!panel) return;
     
-    // モバイル(タッチデバイス)で、かつノートが選択されている場合のみ表示
     if (isMobile && getSelectedNotes().length > 0) {
         panel.classList.add('show');
     } else {
@@ -97,17 +95,25 @@ export function updateMobilePanel() {
     }
 }
 
-// モバイル用編集パネルのイベント登録
 function setupMobilePanel() {
+    const panel = document.getElementById('mobile-edit-panel');
+    
+    // イベント伝播防止（キャンバスの誤操作防止）
+    if (panel) {
+        ['touchstart', 'touchmove', 'touchend', 'mousedown', 'mousemove', 'mouseup', 'click'].forEach(evt => {
+            panel.addEventListener(evt, e => e.stopPropagation(), { passive: false });
+        });
+    }
+
     const btnCopy = document.getElementById('mbtn-copy');
     const btnCut = document.getElementById('mbtn-cut');
     const btnPaste = document.getElementById('mbtn-paste');
     const btnDelete = document.getElementById('mbtn-delete');
     
     const btnUp12 = document.getElementById('mbtn-up12');
+    const btnDown12 = document.getElementById('mbtn-down12');
     const btnUp1 = document.getElementById('mbtn-up1');
     const btnDown1 = document.getElementById('mbtn-down1');
-    const btnDown12 = document.getElementById('mbtn-down12');
 
     if (btnCopy) btnCopy.addEventListener('click', () => { copyNotes(); showToast("Copied"); });
     if (btnCut) btnCut.addEventListener('click', () => { cutNotes(); renderAll(); updateMobilePanel(); showToast("Cut"); });
@@ -120,9 +126,9 @@ function setupMobilePanel() {
     });
 
     if (btnUp12) btnUp12.addEventListener('click', () => shiftPitch(12));
+    if (btnDown12) btnDown12.addEventListener('click', () => shiftPitch(-12));
     if (btnUp1) btnUp1.addEventListener('click', () => shiftPitch(1));
     if (btnDown1) btnDown1.addEventListener('click', () => shiftPitch(-1));
-    if (btnDown12) btnDown12.addEventListener('click', () => shiftPitch(-12));
 }
 
 export function showToast(message) {
@@ -163,6 +169,13 @@ function resizeCanvas() {
     keyCvs.height = Math.max(0, h);
     timeCvs.width = Math.max(0, w); 
     timeCvs.height = 30;
+
+    // 縦スクロールバーの高さをコンテナに合わせる（CSSで90度回転しているためwidthに設定）
+    const scrollV = document.getElementById('scroll-v');
+    const vContainer = document.getElementById('v-scroll-container');
+    if (scrollV && vContainer) {
+        scrollV.style.width = `${vContainer.clientHeight - 8}px`;
+    }
 
     renderAll();
 }
@@ -1089,5 +1102,5 @@ export function setTool(toolName) {
     if (toolName === 'draw') gridCvs.style.cursor = 'crosshair';
     else if (toolName === 'select') gridCvs.style.cursor = 'cell';
     else if (toolName === 'mute') gridCvs.style.cursor = 'not-allowed';
-    else if (toolName === 'delete') gridCvs.style.cursor = 'url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'red\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'><line x1=\'18\' y1=\'6\' x2=\'6\' y2=\'18\'></line><line x1=\'6\' y1=\'6\' x2=\'18\' y2=\'18\'></line></svg>") 8 8, auto';
+    else if (toolName === 'delete') gridCvs.style.cursor = 'url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'red\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'><path d=\'M20 20H7L3 16C2.5 15.5 2.5 14.5 3 14L13 4C13.5 3.5 14.5 3.5 15 4L20 9C20.5 9.5 20.5 10.5 20 11L11 20H20V20Z\'/><line x1=\'18\' y1=\'13\' x2=\'11\' y2=\'20\'/></svg>") 8 16, auto';
 }
