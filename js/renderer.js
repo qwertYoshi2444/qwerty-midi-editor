@@ -192,7 +192,6 @@ function renderNotes() {
             if (note.muted) {
                 fillColor = '#555555'; strokeColor = '#333333';
             } else if (note.selected) {
-                // 選択時は元の色を保持しつつ、白枠で囲む
                 strokeColor = '#ffffff';
                 lineWidth = 2;
             }
@@ -202,34 +201,26 @@ function renderNotes() {
         ctxGrid.strokeStyle = strokeColor; 
         ctxGrid.lineWidth = lineWidth;
         
-        // パスの作成
         ctxGrid.beginPath();
         if (ctxGrid.roundRect) ctxGrid.roundRect(x, y + heightPadding, w, h - heightPadding * 2, 3);
         else ctxGrid.rect(x, y + heightPadding, w, h - heightPadding * 2);
         
-        // 塗りつぶし
         ctxGrid.fill(); 
 
-        // 右端のリサイズ判定の可視化（グラデーション）
-        if (!isLinked && !note.muted && w > 10) {
-            ctxGrid.save(); // クリップ前状態保存
-            ctxGrid.clip(); // 先ほど作ったパス（角丸）でクリッピング
+        // 選択時のみ、右端のリサイズ領域をくっきり半透明（20%）で表示
+        if (!isLinked && !note.muted && note.selected && w > 10) {
+            ctxGrid.save(); 
+            ctxGrid.clip(); 
 
-            const handleWidth = Math.min(15, w / 2); // ハンドル幅（最大15px）
-            const grad = ctxGrid.createLinearGradient(x + w - handleWidth, 0, x + w, 0);
-            grad.addColorStop(0, 'rgba(255,255,255,0)');
-            grad.addColorStop(1, 'rgba(255,255,255,0.7)');
-            
-            ctxGrid.fillStyle = grad;
+            const handleWidth = Math.min(15, w / 2); 
+            ctxGrid.fillStyle = 'rgba(255, 255, 255, 0.2)'; // グラデーションをやめベタ塗りに
             ctxGrid.fillRect(x + w - handleWidth, y + heightPadding, handleWidth, h - heightPadding * 2);
             
-            ctxGrid.restore(); // クリップ解除
+            ctxGrid.restore(); 
         }
 
-        // 枠線の描画（クリップ解除後に描くことで綺麗に見える）
         ctxGrid.stroke();
         
-        // 内部の装飾ライン
         ctxGrid.fillStyle = note.muted ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.3)'; 
         ctxGrid.fillRect(x + 2, y + heightPadding + 1, w - 4, 2);
         ctxGrid.fillStyle = note.muted ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.3)'; 
@@ -244,7 +235,6 @@ function renderNotes() {
             ctxGrid.stroke();
         }
 
-        // 音階名テキスト
         if (w > 25 && h > 10 && !note.muted) {
             ctxGrid.fillStyle = isLinked ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.8)';
             const fontSize = Math.min(11, h - 4); 

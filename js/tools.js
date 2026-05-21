@@ -2,6 +2,9 @@ import { STATE, clearSelection, deleteNote } from './state.js';
 import { getNoteAt, xToTick, getPitchAtY, snapTick, tickToX, pitchToY } from './utils.js';
 import { playPreview } from './audio-engine.js';
 
+// モバイル（タッチ対応端末）かどうかの判定
+const isMobile = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
+
 export const editState = {
     action: null,
     targetNote: null,
@@ -9,7 +12,7 @@ export const editState = {
     startMousePitch: 0,
     originalNotesData:[],
     processedNoteIds: new Set(),
-    lastPreviewPitch: -1 // 連続発音を防ぐためのトラッキング
+    lastPreviewPitch: -1 
 };
 
 function updateSelectionBox() {
@@ -52,7 +55,9 @@ export const DrawTool = {
 
         if (e.button === 0) {
             if (clickedNote) {
-                // 既存ノートをクリックした時、その音を鳴らす（ミュートでなければ）
+                // クリックする前の選択状態を保存しておく
+                const wasSelectedBeforeClick = clickedNote.selected;
+
                 if (!clickedNote.muted) {
                     playPreview(clickedNote.pitch, STATE.activeTrackId);
                     editState.lastPreviewPitch = clickedNote.pitch;
@@ -78,11 +83,16 @@ export const DrawTool = {
                     clickedNote.selected = true;
                 }
 
-                // リサイズ判定エリアを拡大（画面上で約16px幅、右側へのはみ出しも許容）
                 const edgeHitTicks = 16 / STATE.zoomX; 
                 const noteEndTick = clickedNote.tick + clickedNote.duration;
-                // 右端の付近（手前16px 〜 奥6px）ならリサイズと判定
-                if (rawTick >= noteEndTick - edgeHitTicks && rawTick <= noteEndTick + (6 / STATE.zoomX)) {
+                
+                // モバイルの場合は「元から選択されていたノート」でないとリサイズ不可
+                let canResize = true;
+                if (isMobile && !wasSelectedBeforeClick) {
+                    canResize = false;
+                }
+
+                if (canResize && rawTick >= noteEndTick - edgeHitTicks && rawTick <= noteEndTick + (6 / STATE.zoomX)) {
                     editState.action = 'resize';
                 } else {
                     editState.action = 'move';
@@ -96,7 +106,6 @@ export const DrawTool = {
                     note: n, originalTick: n.tick, originalPitch: n.pitch, originalDuration: n.duration
                 }));
             } else {
-                // 新規ノートを作成した時、その音を鳴らす
                 playPreview(pitch, STATE.activeTrackId);
                 editState.lastPreviewPitch = pitch;
 
@@ -147,7 +156,7 @@ export const DrawTool = {
             const snappedTargetTick = snapTick(targetOriginalData.originalTick + tickDiff, e.altKey);
             const actualTickDiff = snappedTargetTick - targetOriginalData.originalTick;
 
-            let targetNewPitch = -1; // ターゲットノートの新しいピッチを追跡
+            let targetNewPitch = -1; 
 
             editState.originalNotesData.forEach(item => {
                 let newTick = item.originalTick + actualTickDiff;
@@ -160,7 +169,6 @@ export const DrawTool = {
                 }
             });
 
-            // ターゲットノートのピッチが前回から変わった瞬間だけ、新しい音を鳴らす
             if (targetNewPitch !== -1 && targetNewPitch !== editState.lastPreviewPitch && !editState.targetNote.muted) {
                 playPreview(targetNewPitch, STATE.activeTrackId);
                 editState.lastPreviewPitch = targetNewPitch;
@@ -173,7 +181,6 @@ export const DrawTool = {
              editState.targetNote.tick = Math.max(0, snappedTick);
              editState.targetNote.pitch = boundedPitch;
 
-             // 新規作成ドラッグ中にピッチが変わった時も鳴らし直す
              if (boundedPitch !== editState.lastPreviewPitch) {
                  playPreview(boundedPitch, STATE.activeTrackId);
                  editState.lastPreviewPitch = boundedPitch;
