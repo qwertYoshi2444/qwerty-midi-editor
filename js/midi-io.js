@@ -119,7 +119,7 @@ export function exportToMIDI(embedLinkData = false) {
     
     const link = document.createElement("a");
     link.href = url;
-    link.download = `fl_clone_${STATE.bpm}bpm.mid`;
+    link.download = `export_${STATE.bpm}bpm.mid`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
