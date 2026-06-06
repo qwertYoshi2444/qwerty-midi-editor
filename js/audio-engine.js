@@ -1,5 +1,3 @@
---- START OF FILE text/javascript ---
-
 import { STATE } from './state.js';
 
 let audioCtx = null;
