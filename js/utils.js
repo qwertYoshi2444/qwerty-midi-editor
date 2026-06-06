@@ -1,5 +1,3 @@
---- START OF FILE text/javascript ---
-
 import { STATE } from './state.js';
 
 // --- 座標・値の変換 ---
