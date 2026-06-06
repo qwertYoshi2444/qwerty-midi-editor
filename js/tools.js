@@ -13,7 +13,7 @@ export const editState = {
     processedNoteIds: new Set(),
     lastPreviewPitch: -1,
     hasChanged: false,
-    previouslySelected: [] // Ctrl選択マージ用
+    previouslySelected: [] 
 };
 
 function updateSelectionBox() {
@@ -32,7 +32,7 @@ function updateSelectionBox() {
         const isIntersecting = nx < maxX && (nx + nw) > minX && ny < maxY && (ny + nh) > minY;
         
         if (editState.previouslySelected.includes(note)) {
-            note.selected = true; // キャッシュされた選択状態を維持
+            note.selected = true; 
         } else {
             note.selected = isIntersecting;
         }
@@ -49,7 +49,6 @@ export const DrawTool = {
         let clickedNote = getNoteAt(mouseX, mouseY);
         editState.hasChanged = false;
 
-        // Ctrl + クリックドラッグ（矩形選択への切り替え）
         if (e.ctrlKey && e.button === 0) {
             editState.action = 'select';
             STATE.selectionBox.active = true;
@@ -64,10 +63,30 @@ export const DrawTool = {
         }
 
         if (e.button === 0) {
-            // バウンディングボックス内をクリックしたかどうかの判定
+            let isResizeHit = false;
+            let targetResizeNote = null;
+
+            // 1. まずリサイズ領域の判定を最優先で行う
+            if (clickedNote) {
+                const wasSelectedBeforeClick = clickedNote.selected;
+                let canResize = true;
+                if (isMobile && !wasSelectedBeforeClick) {
+                    canResize = false;
+                }
+                const edgeHitPixels = isMobile ? 32 : 16;
+                const edgeHitTicks = edgeHitPixels / STATE.zoomX; 
+                const noteEndTick = clickedNote.tick + clickedNote.duration;
+                
+                if (canResize && rawTick >= noteEndTick - edgeHitTicks && rawTick <= noteEndTick + edgeHitTicks) {
+                    isResizeHit = true;
+                    targetResizeNote = clickedNote;
+                }
+            }
+
+            // 2. バウンディングボックス内かどうかの判定 (リサイズ領域でない場合のみ有効とする)
             const bbox = getSelectionBoundingBox();
             let isInsideBBox = false;
-            if (bbox) {
+            if (bbox && !isResizeHit) {
                 const isInsideTick = rawTick >= bbox.minTick && rawTick <= bbox.maxTick;
                 const isInsidePitch = pitch >= bbox.minPitch && pitch <= bbox.maxPitch;
                 if (isInsideTick && isInsidePitch) {
@@ -75,10 +94,31 @@ export const DrawTool = {
                 }
             }
 
-            // バウンディングボックス内をクリックした場合は、既存の選択を維持して移動モードへ
+            // 3. アクションの決定と実行
+            if (isResizeHit) {
+                if (!targetResizeNote.muted) {
+                    playPreview(targetResizeNote.pitch, STATE.activeTrackId);
+                    editState.lastPreviewPitch = targetResizeNote.pitch;
+                }
+                
+                if (!targetResizeNote.selected && !e.shiftKey) {
+                    clearSelection();
+                    targetResizeNote.selected = true;
+                }
+                
+                editState.action = 'resize';
+                editState.targetNote = targetResizeNote;
+                editState.startMouseTick = rawTick;
+                editState.startMousePitch = pitch;
+                editState.originalNotesData = STATE.notes.filter(n => n.selected).map(n => ({
+                    note: n, originalTick: n.tick, originalPitch: n.pitch, originalDuration: n.duration
+                }));
+                return;
+            }
+
             if (isInsideBBox) {
                 editState.action = 'move';
-                editState.targetNote = STATE.notes.find(n => n.selected); // 基準用
+                editState.targetNote = STATE.notes.find(n => n.selected); 
                 editState.startMouseTick = rawTick;
                 editState.startMousePitch = pitch;
                 
@@ -93,12 +133,10 @@ export const DrawTool = {
                     playPreview(pitch, STATE.activeTrackId);
                     editState.lastPreviewPitch = pitch;
                 }
-                return; // ここで完了
+                return;
             }
 
             if (clickedNote) {
-                const wasSelectedBeforeClick = clickedNote.selected;
-
                 if (!clickedNote.muted) {
                     playPreview(clickedNote.pitch, STATE.activeTrackId);
                     editState.lastPreviewPitch = clickedNote.pitch;
@@ -125,21 +163,7 @@ export const DrawTool = {
                     clickedNote.selected = true;
                 }
 
-                let canResize = true;
-                if (isMobile && !wasSelectedBeforeClick) {
-                    canResize = false;
-                }
-
-                const edgeHitPixels = isMobile ? 32 : 16;
-                const edgeHitTicks = edgeHitPixels / STATE.zoomX; 
-                const noteEndTick = clickedNote.tick + clickedNote.duration;
-                
-                if (canResize && rawTick >= noteEndTick - edgeHitTicks && rawTick <= noteEndTick + edgeHitTicks) {
-                    editState.action = 'resize';
-                } else {
-                    editState.action = 'move';
-                }
-
+                editState.action = 'move';
                 editState.targetNote = clickedNote;
                 editState.startMouseTick = rawTick;
                 editState.startMousePitch = pitch;
