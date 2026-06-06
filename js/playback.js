@@ -1,5 +1,3 @@
---- START OF FILE text/javascript ---
-
 import { STATE } from './state.js';
 import { renderAll, startLerpAnimation } from './renderer.js';
 import { initAudio, startScheduler, stopAllSounds, scheduleNotes, playReferenceAudio, stopReferenceAudio } from './audio-engine.js';
