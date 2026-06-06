@@ -1,3 +1,5 @@
+--- START OF FILE text/javascript ---
+
 import { STATE } from './state.js';
 
 // --- 座標・値の変換 ---
@@ -49,4 +51,24 @@ export function getNoteAt(x, y) {
         }
     }
     return null;
+}
+
+// --- 選択範囲のバウンディングボックス取得 ---
+export function getSelectionBoundingBox() {
+    const selected = STATE.notes.filter(n => n.selected);
+    if (selected.length === 0) return null;
+    
+    let minTick = Infinity;
+    let maxTick = -Infinity;
+    let minPitch = Infinity;
+    let maxPitch = -Infinity;
+    
+    selected.forEach(n => {
+        if (n.tick < minTick) minTick = n.tick;
+        if (n.tick + n.duration > maxTick) maxTick = n.tick + n.duration;
+        if (n.pitch < minPitch) minPitch = n.pitch;
+        if (n.pitch > maxPitch) maxPitch = n.pitch;
+    });
+    
+    return { minTick, maxTick, minPitch, maxPitch };
 }

@@ -1,5 +1,7 @@
+--- START OF FILE text/javascript ---
+
 import { STATE, clearSelection, deleteNote, saveHistory } from './state.js';
-import { getNoteAt, xToTick, getPitchAtY, snapTick, tickToX, pitchToY } from './utils.js';
+import { getNoteAt, xToTick, getPitchAtY, snapTick, tickToX, pitchToY, getSelectionBoundingBox } from './utils.js';
 import { playPreview } from './audio-engine.js';
 
 const isMobile = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
@@ -12,7 +14,8 @@ export const editState = {
     originalNotesData:[],
     processedNoteIds: new Set(),
     lastPreviewPitch: -1,
-    hasChanged: false 
+    hasChanged: false,
+    previouslySelected: [] // Ctrl選択マージ用
 };
 
 function updateSelectionBox() {
@@ -29,7 +32,12 @@ function updateSelectionBox() {
         const nh = STATE.zoomY;
         
         const isIntersecting = nx < maxX && (nx + nw) > minX && ny < maxY && (ny + nh) > minY;
-        note.selected = isIntersecting;
+        
+        if (editState.previouslySelected.includes(note)) {
+            note.selected = true; // キャッシュされた選択状態を維持
+        } else {
+            note.selected = isIntersecting;
+        }
     });
 }
 
@@ -43,6 +51,7 @@ export const DrawTool = {
         let clickedNote = getNoteAt(mouseX, mouseY);
         editState.hasChanged = false;
 
+        // Ctrl + クリックドラッグ（矩形選択への切り替え）
         if (e.ctrlKey && e.button === 0) {
             editState.action = 'select';
             STATE.selectionBox.active = true;
@@ -50,11 +59,45 @@ export const DrawTool = {
             STATE.selectionBox.startY = mouseY;
             STATE.selectionBox.currentX = mouseX;
             STATE.selectionBox.currentY = mouseY;
-            if (!e.shiftKey) clearSelection();
+            
+            editState.previouslySelected = STATE.notes.filter(n => n.selected);
+            if (!e.shiftKey && !e.ctrlKey) clearSelection(); 
             return;
         }
 
         if (e.button === 0) {
+            // バウンディングボックス内をクリックしたかどうかの判定
+            const bbox = getSelectionBoundingBox();
+            let isInsideBBox = false;
+            if (bbox) {
+                const isInsideTick = rawTick >= bbox.minTick && rawTick <= bbox.maxTick;
+                const isInsidePitch = pitch >= bbox.minPitch && pitch <= bbox.maxPitch;
+                if (isInsideTick && isInsidePitch) {
+                    isInsideBBox = true;
+                }
+            }
+
+            // バウンディングボックス内をクリックした場合は、既存の選択を維持して移動モードへ
+            if (isInsideBBox) {
+                editState.action = 'move';
+                editState.targetNote = STATE.notes.find(n => n.selected); // 基準用
+                editState.startMouseTick = rawTick;
+                editState.startMousePitch = pitch;
+                
+                editState.originalNotesData = STATE.notes.filter(n => n.selected).map(n => ({
+                    note: n, originalTick: n.tick, originalPitch: n.pitch, originalDuration: n.duration
+                }));
+
+                if (clickedNote && !clickedNote.muted) {
+                    playPreview(clickedNote.pitch, STATE.activeTrackId);
+                    editState.lastPreviewPitch = clickedNote.pitch;
+                } else {
+                    playPreview(pitch, STATE.activeTrackId);
+                    editState.lastPreviewPitch = pitch;
+                }
+                return; // ここで完了
+            }
+
             if (clickedNote) {
                 const wasSelectedBeforeClick = clickedNote.selected;
 
@@ -85,12 +128,10 @@ export const DrawTool = {
                 }
 
                 let canResize = true;
-                // 一度選択しないと伸縮できない仕様の維持
                 if (isMobile && !wasSelectedBeforeClick) {
                     canResize = false;
                 }
 
-                // リサイズの判定領域: モバイル時は前後均等に32px（PCは16px）に拡大して掴みやすくする
                 const edgeHitPixels = isMobile ? 32 : 16;
                 const edgeHitTicks = edgeHitPixels / STATE.zoomX; 
                 const noteEndTick = clickedNote.tick + clickedNote.duration;
@@ -242,7 +283,13 @@ export const SelectTool = {
             STATE.selectionBox.active = true;
             STATE.selectionBox.startX = mouseX; STATE.selectionBox.startY = mouseY;
             STATE.selectionBox.currentX = mouseX; STATE.selectionBox.currentY = mouseY;
-            if (!e.shiftKey) clearSelection();
+            
+            if (e.ctrlKey || e.shiftKey) {
+                editState.previouslySelected = STATE.notes.filter(n => n.selected);
+            } else {
+                editState.previouslySelected = [];
+                clearSelection();
+            }
         }
     },
     onMouseMove: (e, mouseX, mouseY) => {
@@ -317,4 +364,5 @@ export function resetEditState() {
     editState.processedNoteIds.clear();
     editState.lastPreviewPitch = -1; 
     editState.hasChanged = false;
+    editState.previouslySelected = [];
 }

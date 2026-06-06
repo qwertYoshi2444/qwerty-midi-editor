@@ -1,5 +1,7 @@
+--- START OF FILE text/javascript ---
+
 import { STATE } from './state.js';
-import { renderAll, startLerpAnimation } from './renderer.js'; // 追加: startLerpAnimation
+import { renderAll, startLerpAnimation } from './renderer.js';
 import { initAudio, startScheduler, stopAllSounds, scheduleNotes, playReferenceAudio, stopReferenceAudio } from './audio-engine.js';
 
 let lastTime = 0;
@@ -42,6 +44,22 @@ export function togglePlayback() {
     if (canvasGrid) canvasGrid.focus();
 }
 
+export function rewindToStart() {
+    STATE.playheadTick = 0;
+    
+    if (STATE.isPlaying) {
+        // 再生中の場合は一旦スケジュールをクリアし、先頭から音声をリスタートさせる
+        stopAllSounds();
+        stopReferenceAudio();
+        startScheduler();
+        playReferenceAudio(STATE.playheadTick);
+    }
+    
+    STATE.targetScrollTick = 0;
+    startLerpAnimation();
+    renderAll();
+}
+
 function playbackLoop(currentTime) {
     if (!STATE.isPlaying) return;
 
@@ -62,12 +80,10 @@ function playbackLoop(currentTime) {
 
     const canvasGrid = document.getElementById('grid-canvas');
     if (canvasGrid) {
-        // 変更: targetZoomX を使用して見えている範囲を計算
         const visibleTicks = canvasGrid.width / STATE.targetZoomX;
         const scrollThresholdOffset = visibleTicks * 0.8; 
         const scrollThresholdTick = STATE.targetScrollTick + scrollThresholdOffset;
 
-        // 変更: スクロール時に目標値を更新し Lerp させる
         if (STATE.playheadTick > scrollThresholdTick) {
             STATE.targetScrollTick = STATE.playheadTick - scrollThresholdOffset;
             startLerpAnimation();

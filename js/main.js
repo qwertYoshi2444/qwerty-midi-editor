@@ -1,9 +1,12 @@
+--- START OF FILE text/javascript ---
+
 import { STATE, clearSelection, addTrack, duplicateTrack, createLinkedTrack, deleteTrack, TRACK_COLORS_PALETTE, loadParsedMIDI, getMaxTick, initHistory, performUndo, performRedo, saveHistory, getSelectedNotes, deleteSelectedNotes } from './state.js';
 import { initRenderer, renderAll, startLerpAnimation } from './renderer.js';
 import { initEvents, shiftPitch } from './events.js';
-import { updateReferenceVolume, loadReferenceAudio, updateMasterVolume } from './audio-engine.js';
+import { updateReferenceVolume, loadReferenceAudio, updateMasterVolume, stopAllSounds, startScheduler, playReferenceAudio, stopReferenceAudio } from './audio-engine.js';
 import { exportToMIDI, parseMIDI } from './midi-io.js';
 import { copyNotes, cutNotes, pasteNotes } from './clipboard.js';
+import { rewindToStart } from './playback.js';
 
 let editingTrackId = null; 
 let editingColorTrackId = null;
@@ -82,13 +85,24 @@ document.addEventListener('DOMContentLoaded', () => {
     setupMidiLoadModal(); 
     setupMobilePanel(); 
     setTool('draw');
+    updateMobilePanel(); // 初期表示用
 });
+
+function refreshAudioEngine() {
+    if (STATE.isPlaying) {
+        stopAllSounds();
+        stopReferenceAudio();
+        startScheduler();
+        playReferenceAudio(STATE.playheadTick);
+    }
+}
 
 export function updateMobilePanel() {
     const panel = document.getElementById('mobile-edit-panel');
     if (!panel) return;
     
-    if (isMobile && getSelectedNotes().length > 0) {
+    // ご要望により、モバイル環境の場合は選択状態によらず常に表示
+    if (isMobile) {
         panel.classList.add('show');
     } else {
         panel.classList.remove('show');
@@ -270,6 +284,11 @@ function setupToolbar() {
         masterVolSlider.title = `Master Volume: 100%`;
     }
 
+    const btnRewind = document.getElementById('btn-rewind');
+    if (btnRewind) {
+        btnRewind.addEventListener('click', rewindToStart);
+    }
+
     const tools =['draw', 'select', 'mute', 'delete'];
     tools.forEach(tool => {
         const btn = document.getElementById(`btn-${tool}`);
@@ -337,7 +356,6 @@ function setupToolbar() {
                 let linkedCount = 0;
                 let mismatchCount = 0;
                 
-                // Mismatchの数をカウント（window.confirm 廃止に伴うダイアログ内での警告表示用）
                 pendingMidiData.tracks.forEach(t => {
                     if (t._linkStatus === 'linked') linkedCount++;
                     if (t._linkStatus === 'mismatch') mismatchCount++;
@@ -424,6 +442,7 @@ function setupRefTrackPanel() {
         STATE.referenceTrack.isMuted = !STATE.referenceTrack.isMuted;
         muteBtn.classList.toggle('muted', STATE.referenceTrack.isMuted);
         updateReferenceVolume(); 
+        refreshAudioEngine(); // 状態変更後にスケジュールをリフレッシュ
     });
 
     const soloBtn = document.createElement('button');
@@ -439,6 +458,7 @@ function setupRefTrackPanel() {
             muteBtn.classList.remove('muted');
         }
         updateReferenceVolume(); 
+        refreshAudioEngine(); // 状態変更後にスケジュールをリフレッシュ
     });
 
     controlsDiv.appendChild(muteBtn);
@@ -544,6 +564,7 @@ export function setupTrackPanel() {
             track.isMuted = !track.isMuted;
             muteBtn.classList.toggle('muted', track.isMuted);
             updateReferenceVolume(); 
+            refreshAudioEngine(); // 状態変更後にスケジュールをリフレッシュ
             renderAll();
         });
 
@@ -560,6 +581,7 @@ export function setupTrackPanel() {
                 muteBtn.classList.remove('muted');
             }
             updateReferenceVolume(); 
+            refreshAudioEngine(); // 状態変更後にスケジュールをリフレッシュ
             renderAll();
         });
 

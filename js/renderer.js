@@ -1,5 +1,7 @@
+--- START OF FILE text/javascript ---
+
 import { STATE } from './state.js';
-import { tickToX, xToTick, pitchToY, isBlackKey, getNoteName } from './utils.js';
+import { tickToX, xToTick, pitchToY, isBlackKey, getNoteName, getSelectionBoundingBox } from './utils.js';
 import { getActiveNotes } from './audio-engine.js'; 
 
 let ctxGrid, ctxKeyboard, ctxTimeline;
@@ -26,6 +28,8 @@ export function renderAll() {
     
     if (STATE.selectionBox.active) {
         renderSelectionRect();
+    } else {
+        renderBoundingBox();
     }
     
     renderPlayheadGrid(); 
@@ -201,7 +205,6 @@ function renderNotes() {
         ctxGrid.lineWidth = lineWidth;
         
         ctxGrid.beginPath();
-        // 角丸を削除し、ただの矩形にする
         ctxGrid.rect(x, y + heightPadding, w, h - heightPadding * 2);
         ctxGrid.fill(); 
 
@@ -210,7 +213,6 @@ function renderNotes() {
             ctxGrid.clip(); 
 
             const handleWidth = Math.min(15, w / 2); 
-            // 不透明度80%の白
             ctxGrid.fillStyle = 'rgba(255, 255, 255, 0.8)';
             ctxGrid.fillRect(x + w - handleWidth, y + heightPadding, handleWidth, h - heightPadding * 2);
             
@@ -275,6 +277,27 @@ function renderSelectionRect() {
     ctxGrid.strokeStyle = 'rgba(255, 255, 255, 0.5)';
     ctxGrid.lineWidth = 1;
     ctxGrid.strokeRect(minX, minY, w, h);
+}
+
+function renderBoundingBox() {
+    const bbox = getSelectionBoundingBox();
+    if (!bbox) return;
+
+    const x = tickToX(bbox.minTick);
+    // Y座標は上がピッチ高いため maxPitch 側がYの最小値(上辺)になる
+    const y = pitchToY(bbox.maxPitch);
+    const w = (bbox.maxTick - bbox.minTick) * STATE.zoomX;
+    // 高さには選択されたノートのPitch幅に加えて、1ノート分の高さを足す
+    const h = (bbox.maxPitch - bbox.minPitch + 1) * STATE.zoomY;
+
+    // 画面外判定
+    if (x + w < 0 || x > canvasGrid.width || y + h < 0 || y > canvasGrid.height) return;
+
+    ctxGrid.strokeStyle = 'rgba(255, 150, 50, 0.8)';
+    ctxGrid.lineWidth = 1;
+    ctxGrid.setLineDash([4, 4]); // 破線
+    ctxGrid.strokeRect(x, y, w, h);
+    ctxGrid.setLineDash([]); // リセット
 }
 
 function renderPlayheadGrid() {

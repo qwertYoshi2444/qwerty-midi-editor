@@ -1,16 +1,17 @@
+--- START OF FILE text/javascript ---
+
 import { STATE } from './state.js';
 
 let audioCtx = null;
 let masterGain = null; 
 
-let previewOsc = null;
+let previewSource = null; // oscから抽象化
 let previewGain = null;
 let currentPreviewPitch = -1;
 
 const scheduledNoteIds = new Set(); 
 let activeNodes =[]; 
 
-// 新規: ハイライト用のトラッキングデータ
 let scheduledNodes = [];
 let previewState = { pitch: -1, color: null, isPlaying: false };
 
@@ -19,6 +20,7 @@ let refGain = null;
 
 let pulse25Wave = null;
 let pulse12Wave = null;
+let noiseBuffer = null;
 
 export function initAudio() {
     if (!audioCtx) {
@@ -30,6 +32,7 @@ export function initAudio() {
 
         pulse25Wave = createPulseWave(0.25);
         pulse12Wave = createPulseWave(0.125);
+        noiseBuffer = createNoiseBuffer();
     }
     if (audioCtx.state === 'suspended') {
         audioCtx.resume();
@@ -47,6 +50,17 @@ function createPulseWave(duty) {
         imag[i] = 0; 
     }
     return audioCtx.createPeriodicWave(real, imag, { disableNormalization: false });
+}
+
+function createNoiseBuffer() {
+    if (!audioCtx) return null;
+    const bufferSize = audioCtx.sampleRate * 2; // 2 seconds
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const output = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+        output[i] = Math.random() * 2 - 1; // ホワイトノイズ
+    }
+    return buffer;
 }
 
 export function updateMasterVolume() {
@@ -135,28 +149,34 @@ export function playPreview(pitch, trackId) {
     const track = STATE.tracks.find(t => t.id === trackId);
     if (!isTrackAudible(track)) return;
 
-    if (previewOsc && currentPreviewPitch === pitch) return;
+    if (previewSource && currentPreviewPitch === pitch) return;
     stopPreview(true);
 
     currentPreviewPitch = pitch;
-    previewState = { pitch: pitch, color: track.color, isPlaying: true }; // トラッキング
+    previewState = { pitch: pitch, color: track.color, isPlaying: true };
     
     const trackTranspose = track.transpose || 0;
     const actualPitch = Math.max(0, Math.min(127, pitch + STATE.globalTranspose + trackTranspose));
-    const freq = pitchToFreq(actualPitch);
-
-    previewOsc = audioCtx.createOscillator();
+    
     previewGain = audioCtx.createGain();
 
-    if (track.waveform === 'pulse25' && pulse25Wave) {
-        previewOsc.setPeriodicWave(pulse25Wave);
-    } else if (track.waveform === 'pulse12' && pulse12Wave) {
-        previewOsc.setPeriodicWave(pulse12Wave);
+    if (track.waveform === 'noise' && noiseBuffer) {
+        previewSource = audioCtx.createBufferSource();
+        previewSource.buffer = noiseBuffer;
+        previewSource.loop = true;
+        // C4(60)を基準とし、ピッチに応じて再生速度を変える（レトロゲーム風）
+        previewSource.playbackRate.value = Math.pow(2, (actualPitch - 60) / 12);
     } else {
-        previewOsc.type = track.waveform;
+        previewSource = audioCtx.createOscillator();
+        if (track.waveform === 'pulse25' && pulse25Wave) {
+            previewSource.setPeriodicWave(pulse25Wave);
+        } else if (track.waveform === 'pulse12' && pulse12Wave) {
+            previewSource.setPeriodicWave(pulse12Wave);
+        } else {
+            previewSource.type = track.waveform;
+        }
+        previewSource.frequency.value = pitchToFreq(actualPitch);
     }
-
-    previewOsc.frequency.value = freq;
 
     const t = audioCtx.currentTime;
     const trackVol = track.volume !== undefined ? track.volume : 1.0;
@@ -167,15 +187,15 @@ export function playPreview(pitch, trackId) {
     const sustainLevel = maxVolume * track.sustain;
     previewGain.gain.setTargetAtTime(sustainLevel, t + track.attack, track.decay);
 
-    previewOsc.connect(previewGain);
+    previewSource.connect(previewGain);
     previewGain.connect(masterGain);
-    previewOsc.start();
+    previewSource.start();
 }
 
 export function stopPreview(immediate = false) {
-    previewState.isPlaying = false; // トラッキングオフ
+    previewState.isPlaying = false;
     
-    if (!previewOsc || !previewGain || !audioCtx) return;
+    if (!previewSource || !previewGain || !audioCtx) return;
 
     const t = audioCtx.currentTime;
     previewGain.gain.cancelScheduledValues(t);
@@ -183,15 +203,15 @@ export function stopPreview(immediate = false) {
 
     if (immediate) {
         previewGain.gain.linearRampToValueAtTime(0, t + 0.01);
-        previewOsc.stop(t + 0.01);
+        previewSource.stop(t + 0.01);
     } else {
         const track = STATE.tracks.find(t => t.id === STATE.activeTrackId);
         const releaseTime = track ? track.release : 0.1;
         previewGain.gain.exponentialRampToValueAtTime(0.0001, t + releaseTime);
-        previewOsc.stop(t + releaseTime);
+        previewSource.stop(t + releaseTime);
     }
 
-    previewOsc = null;
+    previewSource = null;
     previewGain = null;
     currentPreviewPitch = -1;
 }
@@ -211,7 +231,7 @@ export function stopAllSounds() {
             node.gain.gain.cancelScheduledValues(t);
             node.gain.gain.setValueAtTime(node.gain.gain.value, t);
             node.gain.gain.linearRampToValueAtTime(0, t + 0.02); 
-            node.osc.stop(t + 0.02);
+            node.source.stop(t + 0.02);
         } catch (e) {}
     });
     
@@ -239,8 +259,14 @@ export function scheduleNotes(currentTick, lookaheadTime, secondsPerTick) {
             const compoundId = `${track.id}_${note.id}`;
             
             if (note.tick >= currentTick && note.tick < endTick && !note.muted && !scheduledNoteIds.has(compoundId)) {
-                const timeOffset = (note.tick - currentTick) * secondsPerTick;
-                const startTime = audioCtx.currentTime + timeOffset;
+                let timeOffset = (note.tick - currentTick) * secondsPerTick;
+                let startTime = audioCtx.currentTime + timeOffset;
+                
+                // 音飛び対策: 計算上の時間が過去にずれていた場合、現在時刻にクランプする
+                if (startTime < audioCtx.currentTime) {
+                    startTime = audioCtx.currentTime;
+                }
+                
                 const durationTime = note.duration * secondsPerTick;
                 
                 scheduleSingleNote(note, track, startTime, durationTime);
@@ -251,20 +277,28 @@ export function scheduleNotes(currentTick, lookaheadTime, secondsPerTick) {
 }
 
 function scheduleSingleNote(note, track, startTime, durationTime) {
-    const osc = audioCtx.createOscillator();
+    let sourceNode;
     const gain = audioCtx.createGain();
-    
-    if (track.waveform === 'pulse25' && pulse25Wave) {
-        osc.setPeriodicWave(pulse25Wave);
-    } else if (track.waveform === 'pulse12' && pulse12Wave) {
-        osc.setPeriodicWave(pulse12Wave);
-    } else {
-        osc.type = track.waveform;
-    }
     
     const trackTranspose = track.transpose || 0;
     const actualPitch = Math.max(0, Math.min(127, note.pitch + STATE.globalTranspose + trackTranspose));
-    osc.frequency.value = pitchToFreq(actualPitch);
+    
+    if (track.waveform === 'noise' && noiseBuffer) {
+        sourceNode = audioCtx.createBufferSource();
+        sourceNode.buffer = noiseBuffer;
+        sourceNode.loop = true;
+        sourceNode.playbackRate.value = Math.pow(2, (actualPitch - 60) / 12);
+    } else {
+        sourceNode = audioCtx.createOscillator();
+        if (track.waveform === 'pulse25' && pulse25Wave) {
+            sourceNode.setPeriodicWave(pulse25Wave);
+        } else if (track.waveform === 'pulse12' && pulse12Wave) {
+            sourceNode.setPeriodicWave(pulse12Wave);
+        } else {
+            sourceNode.type = track.waveform;
+        }
+        sourceNode.frequency.value = pitchToFreq(actualPitch);
+    }
     
     const trackVol = track.volume !== undefined ? track.volume : 1.0;
     const maxVolume = 0.3 * trackVol;
@@ -278,13 +312,13 @@ function scheduleSingleNote(note, track, startTime, durationTime) {
     gain.gain.setValueAtTime(sustainLevel, releaseStartTime); 
     gain.gain.exponentialRampToValueAtTime(0.0001, releaseStartTime + track.release);
     
-    osc.connect(gain);
+    sourceNode.connect(gain);
     gain.connect(masterGain); 
     
-    osc.start(startTime);
-    osc.stop(releaseStartTime + track.release);
+    sourceNode.start(startTime);
+    sourceNode.stop(releaseStartTime + track.release);
     
-    const nodeObj = { osc, gain };
+    const nodeObj = { source: sourceNode, gain };
     activeNodes.push(nodeObj);
     
     const nodeInfo = {
@@ -295,13 +329,12 @@ function scheduleSingleNote(note, track, startTime, durationTime) {
     };
     scheduledNodes.push(nodeInfo);
     
-    osc.onended = () => {
+    sourceNode.onended = () => {
         activeNodes = activeNodes.filter(n => n !== nodeObj);
         scheduledNodes = scheduledNodes.filter(n => n !== nodeInfo);
     };
 }
 
-// 新規: レンダラー向けに現在発音中のノート情報を返す関数
 export function getActiveNotes() {
     if (!audioCtx) return [];
     const t = audioCtx.currentTime;
