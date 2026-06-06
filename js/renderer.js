@@ -1,5 +1,3 @@
---- START OF FILE text/javascript ---
-
 import { STATE } from './state.js';
 import { tickToX, xToTick, pitchToY, isBlackKey, getNoteName, getSelectionBoundingBox } from './utils.js';
 import { getActiveNotes } from './audio-engine.js'; 
