@@ -1,5 +1,3 @@
---- START OF FILE text/javascript ---
-
 import { STATE, clearSelection, deleteNote, saveHistory } from './state.js';
 import { getNoteAt, xToTick, getPitchAtY, snapTick, tickToX, pitchToY, getSelectionBoundingBox } from './utils.js';
 import { playPreview } from './audio-engine.js';
