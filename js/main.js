@@ -1,5 +1,3 @@
---- START OF FILE text/javascript ---
-
 import { STATE, clearSelection, addTrack, duplicateTrack, createLinkedTrack, deleteTrack, TRACK_COLORS_PALETTE, loadParsedMIDI, getMaxTick, initHistory, performUndo, performRedo, saveHistory, getSelectedNotes, deleteSelectedNotes } from './state.js';
 import { initRenderer, renderAll, startLerpAnimation } from './renderer.js';
 import { initEvents, shiftPitch } from './events.js';
