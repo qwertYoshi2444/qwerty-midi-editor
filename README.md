@@ -220,4 +220,4 @@ Mボタンでそのトラックをミュート、Sボタンでそのトラック
 [QwertY MIDI Editor ユーザーフィードバック](https://docs.google.com/forms/d/e/1FAIpQLSf5jvY_ChWeNv59_ouEh1MCEavZ0SpcVuvsCZ5SZCjKpooMMA/viewform?usp=header)
 
 
-※全てのリクエストにお応えでいるとは限りません。また、更新が遅れる場合があります。
+※全てのリクエストにお応えできるとは限りません。また、更新が遅れる場合があります。
