@@ -5,7 +5,7 @@
 
 モバイルでの動作も試験的に対応しています。
 
-[QwertY MIDI Editor↗](https://qwertyoshi2444.github.io/piano-roll/)
+[QwertY MIDI Editor↗](https://qwertyoshi2444.github.io/qwerty-midi-editor/)
 
 ---
 
