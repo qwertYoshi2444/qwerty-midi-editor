@@ -3,7 +3,7 @@
 ブラウザ上で動作する、ピアノロール型の簡易的なMIDIエディタです。  
 ノートの追加・移動・削除、複数トラックの管理、MIDIの読み込み・書き出しに対応しています。
 
-[Open QwertY MIDI Editor↗](https://qwertyoshi2444.github.io/piano-roll/)
+[QwertY MIDI Editor↗](https://qwertyoshi2444.github.io/piano-roll/)
 
 ---
 
@@ -217,7 +217,7 @@ Mボタンでそのトラックをミュート、Sボタンでそのトラック
 
 バグ報告、気になる点、機能リクエストがあれば、こちらのフォームからお知らせください。
 
-[QwertY MIDI Editor ユーザーフィードバック](https://docs.google.com/forms/d/e/1FAIpQLSf5jvY_ChWeNv59_ouEh1MCEavZ0SpcVuvsCZ5SZCjKpooMMA/viewform?usp=header)
+[QwertY MIDI Editor ユーザーフィードバック↗](https://docs.google.com/forms/d/e/1FAIpQLSf5jvY_ChWeNv59_ouEh1MCEavZ0SpcVuvsCZ5SZCjKpooMMA/viewform?usp=header)
 
 
 ※全てのリクエストにお応えできるとは限りません。また、更新が遅れる場合があります。
