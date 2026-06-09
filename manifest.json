@@ -1,6 +1,6 @@
 {
-  "name": "QwertY Piano Roll",
-  "short_name": "Piano Roll",
+  "name": "QwertY MIDI Editor",
+  "short_name": "QY MIDI Editor",
   "icons": [
     {
       "src": "./img/icon-192.png",
