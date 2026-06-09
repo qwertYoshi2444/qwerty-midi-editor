@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>piano roll</title>
+    <title>QwertY MIDI Editor/title>
 
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -31,14 +31,12 @@
         
         #app-container { display: flex; flex-direction: column; height: 100vh; width: 100vw; }
         
-        /* ツールバー全体のコンテナ (オーバーフローはクリップしない) */
         #toolbar { 
             height: 40px; background-color: #3b4043; border-bottom: 1px solid #1a1c1d; 
             display: flex; align-items: center; padding: 0 10px; font-size: 14px; flex-shrink: 0;
             z-index: 100; position: relative;
         }
 
-        /* スクロールさせるUI要素を入れるラッパー */
         #toolbar-scroll-area {
             display: flex; align-items: center; gap: 15px; 
             flex-grow: 1; overflow-x: hidden; overflow-y: hidden;
@@ -297,7 +295,6 @@
         .m-edit-btn:active { background-color: #ff6600; color: #fff; border-color: #cc5200; }
         .m-edit-btn svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
-        /* ======== モバイル向け UI スケールアップ ======== */
         @media (max-width: 768px), (pointer: coarse) {
             #toolbar {
                 height: 50px; 
@@ -330,7 +327,6 @@
 
 <div id="app-container">
     <div id="toolbar">
-        <!-- スクロール可能なツール群 -->
         <div id="toolbar-scroll-area">
             <button class="tool-btn" id="btn-toggle-panel" title="Toggle Track Panel">
                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
@@ -407,11 +403,10 @@
                     <input type="range" id="master-vol-slider" min="0" max="150" value="100" style="width: 100px; accent-color: #ff6600;">
                 </div>
             </div>
-        </div> <!-- /#toolbar-scroll-area -->
+        </div>
 
         <div class="spacer"></div>
         
-        <!-- ドロップダウンはスクロールエリアの外側に置くことでクリップを防ぐ -->
         <div class="dropdown">
             <button class="tool-btn dropdown-btn" title="File Menu">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg> File ▼
