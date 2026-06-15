@@ -1,5 +1,5 @@
 import { STATE } from './state.js';
-import { tickToX, xToTick, pitchToY, isBlackKey, getNoteName, getSelectionBoundingBox } from './utils.js';
+import { tickToX, xToTick, pitchToY, isBlackKey, getNoteName, getSelectionBoundingBox, getResizeHandleWidth } from './utils.js';
 import { getActiveNotes } from './audio-engine.js'; 
 
 let ctxGrid, ctxKeyboard, ctxTimeline;
@@ -206,15 +206,15 @@ function renderNotes() {
         ctxGrid.rect(x, y + heightPadding, w, h - heightPadding * 2);
         ctxGrid.fill(); 
 
-        if (!isLinked && !note.muted && note.selected && w > 10) {
-            ctxGrid.save(); 
-            ctxGrid.clip(); 
-
-            const handleWidth = Math.min(15, w / 2); 
-            ctxGrid.fillStyle = 'rgba(255, 255, 255, 0.8)';
-            ctxGrid.fillRect(x + w - handleWidth, y + heightPadding, handleWidth, h - heightPadding * 2);
-            
-            ctxGrid.restore(); 
+        if (!isLinked && !note.muted && note.selected) {
+            const handleWidth = getResizeHandleWidth(note.duration, STATE.zoomX);
+            if (handleWidth > 0) {
+                ctxGrid.save(); 
+                ctxGrid.clip(); 
+                ctxGrid.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                ctxGrid.fillRect(x + w - handleWidth, y + heightPadding, handleWidth, h - heightPadding * 2);
+                ctxGrid.restore(); 
+            }
         }
 
         ctxGrid.stroke();
@@ -282,20 +282,17 @@ function renderBoundingBox() {
     if (!bbox) return;
 
     const x = tickToX(bbox.minTick);
-    // Y座標は上がピッチ高いため maxPitch 側がYの最小値(上辺)になる
     const y = pitchToY(bbox.maxPitch);
     const w = (bbox.maxTick - bbox.minTick) * STATE.zoomX;
-    // 高さには選択されたノートのPitch幅に加えて、1ノート分の高さを足す
     const h = (bbox.maxPitch - bbox.minPitch + 1) * STATE.zoomY;
 
-    // 画面外判定
     if (x + w < 0 || x > canvasGrid.width || y + h < 0 || y > canvasGrid.height) return;
 
     ctxGrid.strokeStyle = 'rgba(255, 150, 50, 0.8)';
     ctxGrid.lineWidth = 1;
-    ctxGrid.setLineDash([4, 4]); // 破線
+    ctxGrid.setLineDash([4, 4]); 
     ctxGrid.strokeRect(x, y, w, h);
-    ctxGrid.setLineDash([]); // リセット
+    ctxGrid.setLineDash([]); 
 }
 
 function renderPlayheadGrid() {
@@ -359,6 +356,30 @@ function renderTimeline() {
     ctxTimeline.clearRect(0, 0, w, h);
     ctxTimeline.fillStyle = '#3b4043';
     ctxTimeline.fillRect(0, 0, w, h);
+
+    // 追加: ループバーの描画
+    const loopStartX = tickToX(STATE.loopStart);
+    const loopEndX = tickToX(STATE.loopEnd);
+    
+    if (loopEndX >= 0 && loopStartX <= w) {
+        if (STATE.loopActive) {
+            ctxTimeline.fillStyle = 'rgba(51, 255, 51, 0.2)';
+            ctxTimeline.fillRect(loopStartX, 0, loopEndX - loopStartX, h);
+            ctxTimeline.fillStyle = '#33cc33';
+            ctxTimeline.fillRect(loopStartX, 0, loopEndX - loopStartX, 3);
+            ctxTimeline.fillStyle = '#33ff33';
+            ctxTimeline.fillRect(loopStartX, 0, 4, h);
+            ctxTimeline.fillRect(loopEndX - 4, 0, 4, h);
+        } else {
+            ctxTimeline.fillStyle = 'rgba(150, 150, 150, 0.15)';
+            ctxTimeline.fillRect(loopStartX, 0, loopEndX - loopStartX, h);
+            ctxTimeline.fillStyle = '#666';
+            ctxTimeline.fillRect(loopStartX, 0, loopEndX - loopStartX, 3);
+            ctxTimeline.fillStyle = '#888';
+            ctxTimeline.fillRect(loopStartX, 0, 3, h);
+            ctxTimeline.fillRect(loopEndX - 3, 0, 3, h);
+        }
+    }
 
     let currentTick = Math.floor(STATE.scrollTick / (STATE.ppq * 4)) * (STATE.ppq * 4);
     ctxTimeline.fillStyle = '#d0d0d0'; 

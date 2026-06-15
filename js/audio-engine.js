@@ -1,15 +1,15 @@
 import { STATE } from './state.js';
 
-let audioCtx = null;
+export let audioCtx = null;
 let masterGain = null; 
+let limiterNode = null; // コンプレッサー(リミッター)ノード
 
-let previewSource = null; // oscから抽象化
+let previewSource = null;
 let previewGain = null;
 let currentPreviewPitch = -1;
 
 const scheduledNoteIds = new Set(); 
 let activeNodes =[]; 
-
 let scheduledNodes = [];
 let previewState = { pitch: -1, color: null, isPlaying: false };
 
@@ -25,7 +25,19 @@ export function initAudio() {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         
         masterGain = audioCtx.createGain();
-        masterGain.connect(audioCtx.destination);
+        
+        // リミッターの作成と設定
+        limiterNode = audioCtx.createDynamicsCompressor();
+        limiterNode.threshold.value = -3.0; // -3dB以上を圧縮
+        limiterNode.knee.value = 0.0;       // ハードニー
+        limiterNode.ratio.value = 20.0;     // 強い圧縮 (リミッターとして機能)
+        limiterNode.attack.value = 0.005;   // 5msのアタック
+        limiterNode.release.value = 0.050;  // 50msのリリース
+
+        // ルーティング: masterGain -> limiterNode -> destination
+        masterGain.connect(limiterNode);
+        limiterNode.connect(audioCtx.destination);
+        
         updateMasterVolume();
 
         pulse25Wave = createPulseWave(0.25);
@@ -52,11 +64,11 @@ function createPulseWave(duty) {
 
 function createNoiseBuffer() {
     if (!audioCtx) return null;
-    const bufferSize = audioCtx.sampleRate * 2; // 2 seconds
+    const bufferSize = audioCtx.sampleRate * 2; 
     const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
     const output = buffer.getChannelData(0);
     for (let i = 0; i < bufferSize; i++) {
-        output[i] = Math.random() * 2 - 1; // ホワイトノイズ
+        output[i] = Math.random() * 2 - 1; 
     }
     return buffer;
 }
@@ -82,6 +94,44 @@ export function isTrackAudible(track) {
         return track.isSoloed;
     }
     return true;
+}
+
+// 特定のトラックの再生中の音・スケジュール済みの音を強制破棄する（M/S堅牢化）
+export function stopTrackSounds(trackId) {
+    if (!audioCtx) return;
+    const t = audioCtx.currentTime;
+    
+    activeNodes = activeNodes.filter(nodeObj => {
+        if (nodeObj.trackId === trackId) {
+            try {
+                nodeObj.gain.gain.cancelScheduledValues(t);
+                nodeObj.gain.gain.setValueAtTime(nodeObj.gain.gain.value, t);
+                nodeObj.gain.gain.linearRampToValueAtTime(0, t + 0.02); 
+                nodeObj.source.stop(t + 0.02);
+            } catch (e) {}
+            return false;
+        }
+        return true;
+    });
+    
+    scheduledNodes = scheduledNodes.filter(n => n.trackId !== trackId);
+    
+    // スケジュール済みIDから該当トラックのものを除外し、ソロ解除時などに再スケジュールできるようにする
+    const prefix = `${trackId}_`;
+    for (const compoundId of scheduledNoteIds) {
+        if (compoundId.startsWith(prefix)) {
+            scheduledNoteIds.delete(compoundId);
+        }
+    }
+}
+
+// M/S状態が変更されたときに全体を再評価し、鳴らしてはいけないトラックの音を消す
+export function evaluateMuteSolo() {
+    STATE.tracks.forEach(track => {
+        if (!isTrackAudible(track)) {
+            stopTrackSounds(track.id);
+        }
+    });
 }
 
 export async function loadReferenceAudio(file) {
@@ -162,7 +212,6 @@ export function playPreview(pitch, trackId) {
         previewSource = audioCtx.createBufferSource();
         previewSource.buffer = noiseBuffer;
         previewSource.loop = true;
-        // C4(60)を基準とし、ピッチに応じて再生速度を変える（レトロゲーム風）
         previewSource.playbackRate.value = Math.pow(2, (actualPitch - 60) / 12);
     } else {
         previewSource = audioCtx.createOscillator();
@@ -255,26 +304,34 @@ export function scheduleNotes(currentTick, lookaheadTime, secondsPerTick) {
         
         notesToPlay.forEach(note => {
             const compoundId = `${track.id}_${note.id}`;
+            const noteEndTick = note.tick + note.duration;
             
-            if (note.tick >= currentTick && note.tick < endTick && !note.muted && !scheduledNoteIds.has(compoundId)) {
-                let timeOffset = (note.tick - currentTick) * secondsPerTick;
-                let startTime = audioCtx.currentTime + timeOffset;
+            // ノートが終了しておらず、かつLookaheadウィンドウ内にある場合
+            if (noteEndTick > currentTick && note.tick < endTick && !note.muted && !scheduledNoteIds.has(compoundId)) {
+                let startTimeOffset = (note.tick - currentTick) * secondsPerTick;
+                let actualStartTime = audioCtx.currentTime + startTimeOffset;
                 
-                // 音飛び対策: 計算上の時間が過去にずれていた場合、現在時刻にクランプする
-                if (startTime < audioCtx.currentTime) {
-                    startTime = audioCtx.currentTime;
+                let offsetIntoNote = 0;
+                
+                // ノートの途中で再生が始まった場合（途中発音）
+                if (actualStartTime < audioCtx.currentTime) {
+                    offsetIntoNote = audioCtx.currentTime - actualStartTime;
+                    actualStartTime = audioCtx.currentTime; 
                 }
                 
-                const durationTime = note.duration * secondsPerTick;
+                const totalDurationTime = note.duration * secondsPerTick;
+                const remainingDurationTime = totalDurationTime - offsetIntoNote;
                 
-                scheduleSingleNote(note, track, startTime, durationTime);
-                scheduledNoteIds.add(compoundId);
+                if (remainingDurationTime > 0) {
+                    scheduleSingleNote(note, track, actualStartTime, remainingDurationTime, offsetIntoNote, compoundId);
+                    scheduledNoteIds.add(compoundId);
+                }
             }
         });
     });
 }
 
-function scheduleSingleNote(note, track, startTime, durationTime) {
+function scheduleSingleNote(note, track, startTime, durationTime, offsetIntoNote, compoundId) {
     let sourceNode;
     const gain = audioCtx.createGain();
     
@@ -300,11 +357,27 @@ function scheduleSingleNote(note, track, startTime, durationTime) {
     
     const trackVol = track.volume !== undefined ? track.volume : 1.0;
     const maxVolume = 0.3 * trackVol;
-    
-    gain.gain.setValueAtTime(0, startTime);
-    gain.gain.linearRampToValueAtTime(maxVolume, startTime + track.attack);
     const sustainLevel = maxVolume * Math.max(0.01, track.sustain);
-    gain.gain.setTargetAtTime(sustainLevel, startTime + track.attack, track.decay);
+    
+    // エンベロープの設定（途中再生時のオフセット考慮）
+    if (offsetIntoNote === 0) {
+        gain.gain.setValueAtTime(0, startTime);
+        gain.gain.linearRampToValueAtTime(maxVolume, startTime + track.attack);
+        gain.gain.setTargetAtTime(sustainLevel, startTime + track.attack, track.decay);
+    } else {
+        let currentVol = 0;
+        if (offsetIntoNote < track.attack) {
+            currentVol = maxVolume * (offsetIntoNote / track.attack);
+            gain.gain.setValueAtTime(currentVol, startTime);
+            gain.gain.linearRampToValueAtTime(maxVolume, startTime + (track.attack - offsetIntoNote));
+            gain.gain.setTargetAtTime(sustainLevel, startTime + (track.attack - offsetIntoNote), track.decay);
+        } else {
+            const timeSinceDecayStart = offsetIntoNote - track.attack;
+            currentVol = sustainLevel + (maxVolume - sustainLevel) * Math.exp(-timeSinceDecayStart / track.decay);
+            gain.gain.setValueAtTime(currentVol, startTime);
+            gain.gain.setTargetAtTime(sustainLevel, startTime, track.decay);
+        }
+    }
     
     const releaseStartTime = startTime + durationTime;
     gain.gain.setValueAtTime(sustainLevel, releaseStartTime); 
@@ -313,17 +386,25 @@ function scheduleSingleNote(note, track, startTime, durationTime) {
     sourceNode.connect(gain);
     gain.connect(masterGain); 
     
-    sourceNode.start(startTime);
+    if (track.waveform === 'noise') {
+        sourceNode.start(startTime, offsetIntoNote);
+    } else {
+        sourceNode.start(startTime);
+    }
+    
     sourceNode.stop(releaseStartTime + track.release);
     
-    const nodeObj = { source: sourceNode, gain };
+    // トラックIDを含めて保存する（M/S切り替え時の強制破棄用）
+    const nodeObj = { source: sourceNode, gain, trackId: track.id };
     activeNodes.push(nodeObj);
     
     const nodeInfo = {
         pitch: note.pitch, 
         color: track.color,
         startTime: startTime,
-        endTime: releaseStartTime + track.release
+        endTime: releaseStartTime + track.release,
+        trackId: track.id,
+        compoundId: compoundId
     };
     scheduledNodes.push(nodeInfo);
     

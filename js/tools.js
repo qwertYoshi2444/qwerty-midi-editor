@@ -1,5 +1,5 @@
 import { STATE, clearSelection, deleteNote, saveHistory } from './state.js';
-import { getNoteAt, xToTick, getPitchAtY, snapTick, tickToX, pitchToY, getSelectionBoundingBox } from './utils.js';
+import { getNoteAt, xToTick, getPitchAtY, snapTick, tickToX, pitchToY, getSelectionBoundingBox, getResizeHandleWidth } from './utils.js';
 import { playPreview } from './audio-engine.js';
 
 const isMobile = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
@@ -39,7 +39,7 @@ function updateSelectionBox() {
     });
 }
 
-// --- Draw Tool (P) ---
+// --- Draw Tool (1) ---
 export const DrawTool = {
     onMouseDown: (e, mouseX, mouseY) => {
         const rawTick = xToTick(mouseX);
@@ -66,24 +66,27 @@ export const DrawTool = {
             let isResizeHit = false;
             let targetResizeNote = null;
 
-            // 1. まずリサイズ領域の判定を最優先で行う
             if (clickedNote) {
                 const wasSelectedBeforeClick = clickedNote.selected;
                 let canResize = true;
                 if (isMobile && !wasSelectedBeforeClick) {
-                    canResize = false;
+                    canResize = false; 
                 }
-                const edgeHitPixels = isMobile ? 32 : 16;
-                const edgeHitTicks = edgeHitPixels / STATE.zoomX; 
-                const noteEndTick = clickedNote.tick + clickedNote.duration;
                 
-                if (canResize && rawTick >= noteEndTick - edgeHitTicks && rawTick <= noteEndTick + edgeHitTicks) {
-                    isResizeHit = true;
-                    targetResizeNote = clickedNote;
+                const handleWidthPixels = getResizeHandleWidth(clickedNote.duration, STATE.zoomX);
+                
+                if (canResize && handleWidthPixels > 0) {
+                    const edgeHitTicks = handleWidthPixels / STATE.zoomX; 
+                    const noteEndTick = clickedNote.tick + clickedNote.duration;
+                    
+                    const hitMarginTicks = 5 / STATE.zoomX; 
+                    if (rawTick >= noteEndTick - edgeHitTicks && rawTick <= noteEndTick + hitMarginTicks) {
+                        isResizeHit = true;
+                        targetResizeNote = clickedNote;
+                    }
                 }
             }
 
-            // 2. バウンディングボックス内かどうかの判定 (リサイズ領域でない場合のみ有効とする)
             const bbox = getSelectionBoundingBox();
             let isInsideBBox = false;
             if (bbox && !isResizeHit) {
@@ -94,7 +97,6 @@ export const DrawTool = {
                 }
             }
 
-            // 3. アクションの決定と実行
             if (isResizeHit) {
                 if (!targetResizeNote.muted) {
                     playPreview(targetResizeNote.pitch, STATE.activeTrackId);
@@ -172,11 +174,11 @@ export const DrawTool = {
                     note: n, originalTick: n.tick, originalPitch: n.pitch, originalDuration: n.duration
                 }));
             } else {
+                // 何もない場所をクリックした場合（新規作成）
                 playPreview(pitch, STATE.activeTrackId);
                 editState.lastPreviewPitch = pitch;
 
                 clearSelection();
-                editState.action = 'create';
                 const snappedTick = snapTick(rawTick, e.altKey);
                 const newNote = { 
                     id: STATE.nextNoteId++, pitch: pitch, tick: snappedTick, 
@@ -184,6 +186,15 @@ export const DrawTool = {
                 };
                 STATE.notes.push(newNote);
                 editState.targetNote = newNote;
+                
+                // 追加: Shiftキー押下時は、ドラッグによる長さ指定モード（create-stretch）に移行
+                if (e.shiftKey) {
+                    editState.action = 'create-stretch';
+                    editState.startMouseTick = snappedTick; 
+                } else {
+                    editState.action = 'create';
+                    editState.startMouseTick = rawTick;
+                }
                 editState.hasChanged = true;
             }
         } 
@@ -268,6 +279,19 @@ export const DrawTool = {
                  playPreview(boundedPitch, STATE.activeTrackId);
                  editState.lastPreviewPitch = boundedPitch;
              }
+             
+        } else if (editState.action === 'create-stretch' && editState.targetNote) {
+             // 追加: Shiftドラッグによる長さの動的伸縮
+             const currentSnapTick = Math.max(0, snapTick(rawTick, e.altKey));
+             let newDuration = currentSnapTick - editState.targetNote.tick;
+             
+             // 最小幅の確保
+             if (newDuration < 1) newDuration = STATE.snap > 0 ? Math.max(1, STATE.snap) : 1;
+             
+             if (editState.targetNote.duration !== newDuration) {
+                 editState.hasChanged = true;
+                 editState.targetNote.duration = newDuration;
+             }
 
         } else if (editState.action === 'delete') {
             const hoveredNote = getNoteAt(mouseX, mouseY);
@@ -282,12 +306,12 @@ export const DrawTool = {
         if (editState.action === 'select') {
             STATE.selectionBox.active = false;
         } else {
-            if ((editState.action === 'resize' || editState.action === 'create') && editState.targetNote) {
+            if ((editState.action === 'resize' || editState.action === 'create' || editState.action === 'create-stretch') && editState.targetNote) {
                 STATE.lastDuration = editState.targetNote.duration;
             }
             if (editState.hasChanged) {
                 let msg = "Edit Notes";
-                if (editState.action === 'create') msg = "Add Note";
+                if (editState.action === 'create' || editState.action === 'create-stretch') msg = "Add Note";
                 if (editState.action === 'delete') msg = "Delete Note";
                 if (editState.action === 'resize') msg = "Resize Note";
                 if (editState.action === 'move') msg = "Move Note";

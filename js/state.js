@@ -55,6 +55,12 @@ export const STATE = {
     targetScrollPitch: 84,
     playheadTick: 0,
     isPlaying: false,
+    autoScroll: false, // デフォルトをOFFに統一
+    
+    loopActive: false,
+    loopStart: 0,
+    loopEnd: 1536,
+
     nextNoteId: 1,
     snap: 24,
     lastDuration: 24,
@@ -343,9 +349,9 @@ export function loadParsedMIDI(parsedData, appendMode, overrideBpm, mismatchActi
         } else if (parsedTrack._linkStatus === 'mismatch') {
             if (mismatchAction === 'keep') {
                 finalLinkedTo = parsedTrack._linkedToOriginalId;
-                finalNotes = []; // リンク元のノートを強制的に使うためパースしたノートは破棄
+                finalNotes = []; 
             } else {
-                finalLinkedTo = null; // 独立トラックにするのでパースしたノートを維持
+                finalLinkedTo = null; 
                 parsedTrack.name += " (Independent)";
             }
         }

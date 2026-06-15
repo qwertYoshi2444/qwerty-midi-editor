@@ -1,5 +1,7 @@
 import { STATE } from './state.js';
 
+const isMobile = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
+
 // --- 座標・値の変換 ---
 export function tickToX(tick) { 
     return (tick - STATE.scrollTick) * STATE.zoomX; 
@@ -49,6 +51,17 @@ export function getNoteAt(x, y) {
         }
     }
     return null;
+}
+
+// 追加: ノートのリサイズハンドルの幅（判定幅兼描画幅）を厳密に計算
+export function getResizeHandleWidth(duration, zoomX) {
+    const widthInPixels = duration * zoomX;
+    // 極端に小さいノート（表示上15px以下）はリサイズ操作自体を無効にする
+    if (widthInPixels <= 15) return 0;
+    
+    // PCでは最大16px、モバイルでは最大32px。ただしノート自体の幅の30%を上限とする
+    const maxWidth = isMobile ? 32 : 16;
+    return Math.min(maxWidth, widthInPixels * 0.3);
 }
 
 // --- 選択範囲のバウンディングボックス取得 ---

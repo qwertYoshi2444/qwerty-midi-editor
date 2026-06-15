@@ -1,7 +1,7 @@
 import { STATE, clearSelection, addTrack, duplicateTrack, createLinkedTrack, deleteTrack, TRACK_COLORS_PALETTE, loadParsedMIDI, getMaxTick, initHistory, performUndo, performRedo, saveHistory, getSelectedNotes, deleteSelectedNotes } from './state.js';
 import { initRenderer, renderAll, startLerpAnimation } from './renderer.js';
 import { initEvents, shiftPitch } from './events.js';
-import { updateReferenceVolume, loadReferenceAudio, updateMasterVolume, stopAllSounds, startScheduler, playReferenceAudio, stopReferenceAudio } from './audio-engine.js';
+import { updateReferenceVolume, loadReferenceAudio, updateMasterVolume, stopAllSounds, startScheduler, playReferenceAudio, stopReferenceAudio, evaluateMuteSolo } from './audio-engine.js';
 import { exportToMIDI, parseMIDI } from './midi-io.js';
 import { copyNotes, cutNotes, pasteNotes } from './clipboard.js';
 import { rewindToStart } from './playback.js';
@@ -74,6 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('touchend', stopResize);
 
     resizeCanvas();
+    setupTopMenuBar(); // 新設
     setupToolbar();
     setupScrollbars(); 
     setupRefTrackPanel(); 
@@ -83,23 +84,17 @@ document.addEventListener('DOMContentLoaded', () => {
     setupMidiLoadModal(); 
     setupMobilePanel(); 
     setTool('draw');
-    updateMobilePanel(); // 初期表示用
+    updateMobilePanel(); 
 });
 
 function refreshAudioEngine() {
-    if (STATE.isPlaying) {
-        stopAllSounds();
-        stopReferenceAudio();
-        startScheduler();
-        playReferenceAudio(STATE.playheadTick);
-    }
+    evaluateMuteSolo();
 }
 
 export function updateMobilePanel() {
     const panel = document.getElementById('mobile-edit-panel');
     if (!panel) return;
     
-    // ご要望により、モバイル環境の場合は選択状態によらず常に表示
     if (isMobile) {
         panel.classList.add('show');
     } else {
@@ -238,6 +233,81 @@ function setupScrollbars() {
     requestAnimationFrame(syncScrollbars);
 }
 
+// 新設：トップメニューバーのイベントセットアップ
+function setupTopMenuBar() {
+    // File
+    document.getElementById('menu-load-midi').addEventListener('click', (e) => {
+        e.preventDefault();
+        document.getElementById('hidden-midi-input').click();
+    });
+    document.getElementById('menu-export-midi-links').addEventListener('click', (e) => {
+        e.preventDefault();
+        exportToMIDI(true);
+    });
+    document.getElementById('menu-export-midi-standard').addEventListener('click', (e) => {
+        e.preventDefault();
+        exportToMIDI(false);
+    });
+
+    // Edit
+    document.getElementById('menu-edit-undo').addEventListener('click', (e) => {
+        e.preventDefault();
+        const msg = performUndo();
+        if (msg) showToast(msg);
+        setupTrackPanel();
+        renderAll();
+        updateMobilePanel();
+    });
+    document.getElementById('menu-edit-redo').addEventListener('click', (e) => {
+        e.preventDefault();
+        const msg = performRedo();
+        if (msg) showToast(msg);
+        setupTrackPanel();
+        renderAll();
+        updateMobilePanel();
+    });
+    document.getElementById('menu-edit-cut').addEventListener('click', (e) => {
+        e.preventDefault();
+        cutNotes(); renderAll(); updateMobilePanel(); showToast("Cut");
+    });
+    document.getElementById('menu-edit-copy').addEventListener('click', (e) => {
+        e.preventDefault();
+        copyNotes(); showToast("Copied");
+    });
+    document.getElementById('menu-edit-paste').addEventListener('click', (e) => {
+        e.preventDefault();
+        pasteNotes(); renderAll(); updateMobilePanel(); showToast("Pasted");
+    });
+    document.getElementById('menu-edit-delete').addEventListener('click', (e) => {
+        e.preventDefault();
+        const selected = getSelectedNotes();
+        if (selected.length > 0) {
+            deleteSelectedNotes();
+            saveHistory("Delete Selected");
+            renderAll();
+            updateMobilePanel();
+        }
+    });
+    document.getElementById('menu-edit-selectall').addEventListener('click', (e) => {
+        e.preventDefault();
+        STATE.notes.forEach(n => n.selected = true);
+        renderAll();
+        updateMobilePanel();
+    });
+    document.getElementById('menu-edit-trans-up12').addEventListener('click', (e) => { e.preventDefault(); shiftPitch(12); });
+    document.getElementById('menu-edit-trans-down12').addEventListener('click', (e) => { e.preventDefault(); shiftPitch(-12); });
+    document.getElementById('menu-edit-trans-up1').addEventListener('click', (e) => { e.preventDefault(); shiftPitch(1); });
+    document.getElementById('menu-edit-trans-down1').addEventListener('click', (e) => { e.preventDefault(); shiftPitch(-1); });
+
+    // Settings / Help
+    document.getElementById('menu-settings').addEventListener('click', () => {
+        alert("Settings module is under construction.\n\nHere you will be able to configure app preferences, audio devices, and display options.");
+    });
+    document.getElementById('menu-help').addEventListener('click', () => {
+        alert("QwertY MIDI Editor\n\nShortcuts:\nSpace: Play/Stop\nL: Toggle Loop\n1~4: Change Tools\nCtrl+C/X/V: Copy/Cut/Paste\nCtrl+Z: Undo / Ctrl+Shift+Z: Redo\nArrow Keys: Transpose (with Shift/Ctrl)");
+    });
+}
+
 function setupToolbar() {
     const btnTogglePanel = document.getElementById('btn-toggle-panel');
     const panelContainer = document.getElementById('track-panel-container');
@@ -287,6 +357,24 @@ function setupToolbar() {
         btnRewind.addEventListener('click', rewindToStart);
     }
 
+    const btnAutoScroll = document.getElementById('btn-auto-scroll');
+    if (btnAutoScroll) {
+        btnAutoScroll.addEventListener('click', () => {
+            STATE.autoScroll = !STATE.autoScroll;
+            btnAutoScroll.classList.toggle('active', STATE.autoScroll);
+        });
+    }
+
+    // ループON/OFFボタン
+    const btnLoop = document.getElementById('btn-loop');
+    if (btnLoop) {
+        btnLoop.addEventListener('click', () => {
+            STATE.loopActive = !STATE.loopActive;
+            btnLoop.classList.toggle('active', STATE.loopActive);
+            renderAll();
+        });
+    }
+
     const tools =['draw', 'select', 'mute', 'delete'];
     tools.forEach(tool => {
         const btn = document.getElementById(`btn-${tool}`);
@@ -316,32 +404,8 @@ function setupToolbar() {
         });
     }
 
-    const menuLoad = document.getElementById('menu-load-midi');
-    const menuExportLinks = document.getElementById('menu-export-midi-links');
-    const menuExportStd = document.getElementById('menu-export-midi-standard');
     const hiddenInput = document.getElementById('hidden-midi-input');
     
-    if (menuLoad && hiddenInput) {
-        menuLoad.addEventListener('click', (e) => {
-            e.preventDefault();
-            hiddenInput.click();
-        });
-    }
-
-    if (menuExportLinks) {
-        menuExportLinks.addEventListener('click', (e) => {
-            e.preventDefault();
-            exportToMIDI(true); 
-        });
-    }
-    
-    if (menuExportStd) {
-        menuExportStd.addEventListener('click', (e) => {
-            e.preventDefault();
-            exportToMIDI(false); 
-        });
-    }
-
     if (hiddenInput) {
         hiddenInput.addEventListener('change', async (e) => {
             if (e.target.files.length === 0) return;
@@ -440,7 +504,7 @@ function setupRefTrackPanel() {
         STATE.referenceTrack.isMuted = !STATE.referenceTrack.isMuted;
         muteBtn.classList.toggle('muted', STATE.referenceTrack.isMuted);
         updateReferenceVolume(); 
-        refreshAudioEngine(); // 状態変更後にスケジュールをリフレッシュ
+        refreshAudioEngine();
     });
 
     const soloBtn = document.createElement('button');
@@ -456,7 +520,7 @@ function setupRefTrackPanel() {
             muteBtn.classList.remove('muted');
         }
         updateReferenceVolume(); 
-        refreshAudioEngine(); // 状態変更後にスケジュールをリフレッシュ
+        refreshAudioEngine();
     });
 
     controlsDiv.appendChild(muteBtn);
@@ -562,7 +626,7 @@ export function setupTrackPanel() {
             track.isMuted = !track.isMuted;
             muteBtn.classList.toggle('muted', track.isMuted);
             updateReferenceVolume(); 
-            refreshAudioEngine(); // 状態変更後にスケジュールをリフレッシュ
+            refreshAudioEngine();
             renderAll();
         });
 
@@ -579,7 +643,7 @@ export function setupTrackPanel() {
                 muteBtn.classList.remove('muted');
             }
             updateReferenceVolume(); 
-            refreshAudioEngine(); // 状態変更後にスケジュールをリフレッシュ
+            refreshAudioEngine();
             renderAll();
         });
 

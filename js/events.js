@@ -1,11 +1,11 @@
 import { STATE, getSelectedNotes, deleteSelectedNotes, performUndo, performRedo, saveHistory } from './state.js';
-import { xToTick, getPitchAtY, getNoteAt, snapTick } from './utils.js';
+import { xToTick, getPitchAtY, getNoteAt, snapTick, getResizeHandleWidth } from './utils.js';
 import { renderAll, startLerpAnimation } from './renderer.js'; 
 import { DrawTool, SelectTool, MuteTool, DeleteTool, editState, resetEditState } from './tools.js';
 import { copyNotes, cutNotes, pasteNotes } from './clipboard.js';
 import { setTool, showToast, updateMobilePanel } from './main.js';
 import { initAudio, stopPreview, playPreview, stopAllSounds, startScheduler, stopReferenceAudio, playReferenceAudio } from './audio-engine.js';
-import { togglePlayback } from './playback.js';
+import { togglePlayback, syncPlaybackTime } from './playback.js';
 
 let canvasGrid = null;
 let canvasTimeline = null;
@@ -14,18 +14,25 @@ let isTimelineDragging = false;
 let lastMouseX = 0;
 let lastMouseY = 0;
 
-// ジェスチャー管理用変数
 let isPinching = false;
 let lastPinchDistanceX = 0;
 let lastPinchDistanceY = 0;
 let lastPinchCenter = { centerX: 0, centerY: 0 };
 
-// 1本指タッチ（マウスエミュレート）用変数
 let activeTouchId = null;
 let lastTouchX = 0;
 let lastTouchY = 0;
 let touchHoldTimer = null;
-let isTouchEditing = false; // 編集操作として確定したかどうかのフラグ
+let isTouchEditing = false; 
+
+// ループバー操作用の状態変数（中央ドラッグ用変数を削除）
+let isLoopDraggingStart = false;
+let isLoopDraggingEnd = false;
+
+// タイムライン長押し判定用
+let timelineTouchTimer = null;
+let timelineTouchStartX = 0;
+let timelineTouchStartY = 0;
 
 function isEditingLocked() {
     const track = STATE.tracks.find(t => t.id === STATE.activeTrackId);
@@ -56,6 +63,33 @@ export function initEvents(gridCvs) {
     window.addEventListener('mouseup', onMouseUp);
     window.addEventListener('keydown', onKeyDown);
 
+    // タイムラインへのタッチ操作を補完（ループドラッグとシーク用）
+    window.addEventListener('touchmove', (e) => {
+        if (timelineTouchTimer) {
+            const dx = Math.abs(e.touches[0].clientX - timelineTouchStartX);
+            const dy = Math.abs(e.touches[0].clientY - timelineTouchStartY);
+            if (dx > 10 || dy > 10) {
+                clearTimeout(timelineTouchTimer);
+                timelineTouchTimer = null;
+            }
+        }
+
+        if (isTimelineDragging || isLoopDraggingStart || isLoopDraggingEnd) {
+            e.preventDefault();
+            onMouseMove({ clientX: e.touches[0].clientX, clientY: e.touches[0].clientY });
+        }
+    }, { passive: false });
+    
+    window.addEventListener('touchend', (e) => {
+        if (timelineTouchTimer) {
+            clearTimeout(timelineTouchTimer);
+            timelineTouchTimer = null;
+        }
+        if (isTimelineDragging || isLoopDraggingStart || isLoopDraggingEnd) {
+            onMouseUp(e);
+        }
+    });
+
     if (keyCvs) {
         keyCvs.addEventListener('mousedown', (e) => {
             const rect = keyCvs.getBoundingClientRect();
@@ -66,20 +100,107 @@ export function initEvents(gridCvs) {
     }
     
     if (canvasTimeline) {
+        canvasTimeline.addEventListener('contextmenu', e => e.preventDefault());
+
         canvasTimeline.addEventListener('mousedown', (e) => {
+            if (e.button === 1) {
+                // PC: タイムライン上でのミドルクリックによるループ端移動
+                handleTimelineMiddleDown(e.clientX);
+                e.preventDefault();
+                return;
+            }
             if (e.button !== 0) return; 
-            isTimelineDragging = true;
-            updatePlayheadFromMouse(e.clientX);
+            handleTimelinePointerDown(e.clientX, e.clientY, false);
         });
+
         canvasTimeline.addEventListener('touchstart', (e) => {
+            if (e.touches.length !== 1) return;
+            const clientX = e.touches[0].clientX;
+            const clientY = e.touches[0].clientY;
+            
+            timelineTouchStartX = clientX;
+            timelineTouchStartY = clientY;
+            
+            // まずは通常のシークとして処理を開始
             isTimelineDragging = true;
-            updatePlayheadFromMouse(e.touches[0].clientX);
+            updatePlayheadFromMouse(clientX);
+            
+            // モバイル：長押しタイマーのセット（400ms）
+            timelineTouchTimer = setTimeout(() => {
+                // 長押し成立：シークを中断し、ループ設定モードへ
+                isTimelineDragging = false;
+                
+                const rect = canvasTimeline.getBoundingClientRect();
+                const rawTick = xToTick(timelineTouchStartX - rect.left);
+                
+                // 近い方のループ端点を判定
+                const distStart = Math.abs(rawTick - STATE.loopStart);
+                const distEnd = Math.abs(rawTick - STATE.loopEnd);
+                
+                if (distStart <= distEnd) {
+                    isLoopDraggingStart = true;
+                } else {
+                    isLoopDraggingEnd = true;
+                }
+                
+                applyLoopDrag(timelineTouchStartX);
+            }, 400);
+
             e.preventDefault();
         }, { passive: false });
     }
 
     const btnPlay = document.getElementById('btn-play');
     if (btnPlay) btnPlay.addEventListener('click', togglePlayback);
+}
+
+function handleTimelineMiddleDown(clientX) {
+    const rect = canvasTimeline.getBoundingClientRect();
+    const mouseX = clientX - rect.left;
+    const rawTick = xToTick(mouseX);
+    
+    // 現在の始点と終点のどちらに近いかを判定して掴む
+    const distStart = Math.abs(rawTick - STATE.loopStart);
+    const distEnd = Math.abs(rawTick - STATE.loopEnd);
+    
+    if (distStart <= distEnd) {
+        isLoopDraggingStart = true;
+    } else {
+        isLoopDraggingEnd = true;
+    }
+    
+    // スナップして即時適用
+    applyLoopDrag(clientX);
+}
+
+function handleTimelinePointerDown(clientX, clientY, isTouch) {
+    if (!canvasTimeline) return;
+    
+    // PC左クリックによるループ操作機能を削除し、純粋なシークのみとする
+    isTimelineDragging = true;
+    updatePlayheadFromMouse(clientX);
+}
+
+function applyLoopDrag(clientX) {
+    if (!canvasTimeline) return;
+    const rect = canvasTimeline.getBoundingClientRect();
+    const mouseX = clientX - rect.left;
+    const rawTick = xToTick(mouseX);
+    
+    // グリッドスナップ値（0の場合はPPQにフォールバック）
+    const snapVal = STATE.snap > 0 ? STATE.snap : STATE.ppq;
+    const snappedTick = Math.max(0, Math.round(rawTick / snapVal) * snapVal);
+
+    if (isLoopDraggingStart) {
+        if (snappedTick < STATE.loopEnd - snapVal) {
+            STATE.loopStart = snappedTick;
+        }
+    } else if (isLoopDraggingEnd) {
+        if (snappedTick > STATE.loopStart + snapVal) {
+            STATE.loopEnd = snappedTick;
+        }
+    }
+    renderAll();
 }
 
 function updatePlayheadFromMouse(clientX) {
@@ -91,6 +212,7 @@ function updatePlayheadFromMouse(clientX) {
     STATE.playheadTick = Math.max(0, snapTick(rawTick, false));
     
     if (STATE.isPlaying) {
+        syncPlaybackTime();
         stopAllSounds();
         stopReferenceAudio(); 
         startScheduler();
@@ -126,7 +248,6 @@ function onTouchStart(e) {
         e.preventDefault(); 
         isPinching = true;
         
-        // 1本指操作が始まっていたらキャンセル
         if (isTouchEditing) {
             const synthEvent = { clientX: lastTouchX, clientY: lastTouchY, button: 0, ctrlKey: false, shiftKey: false, altKey: false };
             onMouseUp(synthEvent);
@@ -149,7 +270,6 @@ function onTouchStart(e) {
         lastTouchY = e.changedTouches[0].clientY;
         isTouchEditing = false;
         
-        // 80msの間、2本目の指が来ないか様子を見る
         touchHoldTimer = setTimeout(() => {
             if (activeTouchId !== null && !isPinching) {
                 startTouchEdit();
@@ -197,7 +317,6 @@ function onTouchMove(e) {
             const dx = Math.abs(touch.clientX - lastTouchX);
             const dy = Math.abs(touch.clientY - lastTouchY);
 
-            // 待機中に指が10px以上動いた場合、即座に編集操作として確定させる
             if (!isTouchEditing && (dx > 10 || dy > 10)) {
                 if (touchHoldTimer) clearTimeout(touchHoldTimer);
                 startTouchEdit();
@@ -226,7 +345,6 @@ function onTouchEnd(e) {
     
     const touch = Array.from(e.changedTouches).find(t => t.identifier === activeTouchId);
     if (touch) {
-        // もし指が離れるまで待機状態だったなら、クリックとみなして処理する
         if (!isTouchEditing) {
             startTouchEdit();
         }
@@ -269,6 +387,11 @@ function onMouseDown(e) {
 }
 
 function onMouseMove(e) {
+    if (isLoopDraggingStart || isLoopDraggingEnd) {
+        applyLoopDrag(e.clientX);
+        return;
+    }
+
     if (isTimelineDragging) {
         updatePlayheadFromMouse(e.clientX);
         return;
@@ -309,6 +432,16 @@ function onMouseMove(e) {
 function onMouseUp(e) {
     stopPreview();
 
+    if (isLoopDraggingStart || isLoopDraggingEnd) {
+        isLoopDraggingStart = false;
+        isLoopDraggingEnd = false;
+        // ミドルドラッグ後などの復帰
+        if (e && e.button === 1) {
+            document.body.style.cursor = 'default';
+        }
+        return;
+    }
+
     if (isTimelineDragging) {
         isTimelineDragging = false;
         return;
@@ -339,7 +472,7 @@ function onMouseUp(e) {
 }
 
 function updateCursor(mouseX, mouseY, rawTick) {
-    if (isMiddleDragging || editState.action || isTimelineDragging) return;
+    if (isMiddleDragging || editState.action || isTimelineDragging || isLoopDraggingStart || isLoopDraggingEnd) return;
     if (!canvasGrid) return;
     
     if (isEditingLocked()) {
@@ -351,16 +484,18 @@ function updateCursor(mouseX, mouseY, rawTick) {
 
     const hoveredNote = getNoteAt(mouseX, mouseY);
     if (hoveredNote) {
-        const isMobile = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
-        const edgeHitPixels = isMobile ? 32 : 16;
-        const edgeHitTicks = edgeHitPixels / STATE.zoomX;
-        const noteEndTick = hoveredNote.tick + hoveredNote.duration;
-        
-        if (rawTick >= noteEndTick - edgeHitTicks && rawTick <= noteEndTick + edgeHitTicks) {
-            canvasGrid.style.cursor = 'ew-resize';
-        } else {
-            canvasGrid.style.cursor = 'move';
+        const handleWidthPixels = getResizeHandleWidth(hoveredNote.duration, STATE.zoomX);
+        if (handleWidthPixels > 0) {
+            const edgeHitTicks = handleWidthPixels / STATE.zoomX;
+            const noteEndTick = hoveredNote.tick + hoveredNote.duration;
+            const hitMarginTicks = 5 / STATE.zoomX;
+            
+            if (rawTick >= noteEndTick - edgeHitTicks && rawTick <= noteEndTick + hitMarginTicks) {
+                canvasGrid.style.cursor = 'ew-resize';
+                return;
+            }
         }
+        canvasGrid.style.cursor = 'move';
     } else {
         canvasGrid.style.cursor = 'crosshair';
     }
@@ -413,10 +548,16 @@ function onKeyDown(e) {
         return; 
     }
 
-    if (e.key.toLowerCase() === 'p') setTool('draw');
-    if (e.key.toLowerCase() === 'e') setTool('select');
-    if (e.key.toLowerCase() === 't') setTool('mute');
-    if (e.key.toLowerCase() === 'd') setTool('delete');
+    // 文字キーショートカット削除、数字キーのみ保持
+    if (e.key === '1') setTool('draw');
+    if (e.key === '2') setTool('select');
+    if (e.key === '3') setTool('mute');
+    if (e.key === '4') setTool('delete');
+
+    if (e.key.toLowerCase() === 'l') {
+        const btnLoop = document.getElementById('btn-loop');
+        if (btnLoop) btnLoop.click();
+    }
 
     if (isEditingLocked()) return; 
 

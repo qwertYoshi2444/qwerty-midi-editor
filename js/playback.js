@@ -1,9 +1,11 @@
 import { STATE } from './state.js';
 import { renderAll, startLerpAnimation } from './renderer.js';
-import { initAudio, startScheduler, stopAllSounds, scheduleNotes, playReferenceAudio, stopReferenceAudio } from './audio-engine.js';
+import { audioCtx, initAudio, startScheduler, stopAllSounds, scheduleNotes, playReferenceAudio, stopReferenceAudio } from './audio-engine.js';
 
-let lastTime = 0;
 let animationId = null;
+
+let playbackStartTime = 0;
+let playbackStartTick = 0;
 
 const ICON_PLAY = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
 const ICON_STOP = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>`;
@@ -22,7 +24,9 @@ export function togglePlayback() {
         startScheduler(); 
         playReferenceAudio(STATE.playheadTick);
         
-        lastTime = performance.now();
+        playbackStartTime = audioCtx.currentTime;
+        playbackStartTick = STATE.playheadTick;
+        
         animationId = requestAnimationFrame(playbackLoop);
         
     } else {
@@ -42,11 +46,20 @@ export function togglePlayback() {
     if (canvasGrid) canvasGrid.focus();
 }
 
+export function syncPlaybackTime() {
+    if (audioCtx && STATE.isPlaying) {
+        playbackStartTime = audioCtx.currentTime;
+        playbackStartTick = STATE.playheadTick;
+    }
+}
+
 export function rewindToStart() {
     STATE.playheadTick = 0;
     
     if (STATE.isPlaying) {
-        // 再生中の場合は一旦スケジュールをクリアし、先頭から音声をリスタートさせる
+        playbackStartTick = 0;
+        if (audioCtx) playbackStartTime = audioCtx.currentTime;
+        
         stopAllSounds();
         stopReferenceAudio();
         startScheduler();
@@ -60,36 +73,50 @@ export function rewindToStart() {
 
 function playbackLoop(currentTime) {
     if (!STATE.isPlaying) return;
-
-    let deltaTime = (currentTime - lastTime) / 1000;
-    lastTime = currentTime;
-    
-    if (deltaTime > 0.1) {
-        deltaTime = 0.1;
-    }
+    if (!audioCtx) return;
 
     const ticksPerSecond = (STATE.bpm * STATE.ppq) / 60;
     const secondsPerTick = 60 / (STATE.bpm * STATE.ppq);
     
-    STATE.playheadTick += ticksPerSecond * deltaTime;
+    const elapsedTime = audioCtx.currentTime - playbackStartTime;
+    let nextTick = playbackStartTick + (elapsedTime * ticksPerSecond);
+
+    // ループ再生ロジック
+    if (STATE.loopActive && nextTick >= STATE.loopEnd) {
+        const overrun = nextTick - STATE.loopEnd;
+        STATE.playheadTick = STATE.loopStart + overrun;
+        
+        playbackStartTick = STATE.playheadTick;
+        playbackStartTime = audioCtx.currentTime;
+
+        // 一旦すべての発音とスケジュールをクリアし、ループ先頭からシームレスに再予約
+        stopAllSounds();
+        stopReferenceAudio();
+        startScheduler();
+        playReferenceAudio(STATE.playheadTick);
+    } else {
+        STATE.playheadTick = nextTick;
+    }
 
     const lookaheadTime = 0.1; 
     scheduleNotes(STATE.playheadTick, lookaheadTime, secondsPerTick);
 
-    const canvasGrid = document.getElementById('grid-canvas');
-    if (canvasGrid) {
-        const visibleTicks = canvasGrid.width / STATE.targetZoomX;
-        const scrollThresholdOffset = visibleTicks * 0.8; 
-        const scrollThresholdTick = STATE.targetScrollTick + scrollThresholdOffset;
+    if (STATE.autoScroll) {
+        const canvasGrid = document.getElementById('grid-canvas');
+        if (canvasGrid) {
+            const visibleTicks = canvasGrid.width / STATE.targetZoomX;
+            const scrollThresholdOffset = visibleTicks * 0.8; 
+            const scrollThresholdTick = STATE.targetScrollTick + scrollThresholdOffset;
 
-        if (STATE.playheadTick > scrollThresholdTick) {
-            STATE.targetScrollTick = STATE.playheadTick - scrollThresholdOffset;
-            startLerpAnimation();
-        }
-        
-        if (STATE.playheadTick < STATE.targetScrollTick) {
-            STATE.targetScrollTick = STATE.playheadTick;
-            startLerpAnimation();
+            if (STATE.playheadTick > scrollThresholdTick) {
+                STATE.targetScrollTick = STATE.playheadTick - scrollThresholdOffset;
+                startLerpAnimation();
+            }
+            
+            if (STATE.playheadTick < STATE.targetScrollTick) {
+                STATE.targetScrollTick = STATE.playheadTick;
+                startLerpAnimation();
+            }
         }
     }
 
