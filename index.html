@@ -31,6 +31,78 @@
         
         #app-container { display: flex; flex-direction: column; height: 100vh; width: 100vw; }
         
+        /* トップメニューバーのスタイル */
+        #top-menu-bar {
+            height: 24px;
+            background-color: #2c3032;
+            border-bottom: 1px solid #1a1c1d;
+            display: flex;
+            align-items: center;
+            padding: 0 4px;
+            font-size: 12px;
+            flex-shrink: 0;
+            z-index: 2000;
+        }
+        .top-menu-item {
+            position: relative;
+            cursor: default;
+        }
+        .top-menu-label {
+            padding: 0 10px;
+            line-height: 24px;
+            color: #d0d0d0;
+        }
+        .top-menu-item:hover .top-menu-label {
+            background-color: #4b5155;
+            color: #fff;
+        }
+        .top-menu-dropdown {
+            display: none;
+            position: absolute;
+            top: 24px;
+            left: 0;
+            background-color: #2c3032;
+            min-width: 220px;
+            max-height: calc(100vh - 40px); /* 画面外に行かないよう最大高さを制限 */
+            overflow-y: auto; /* はみ出した場合はスクロール */
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            border: 1px solid #555;
+            border-radius: 2px;
+            z-index: 3000;
+        }
+        /* ドロップダウンのスクロールバー装飾 */
+        .top-menu-dropdown::-webkit-scrollbar { width: 6px; }
+        .top-menu-dropdown::-webkit-scrollbar-track { background: #2c3032; }
+        .top-menu-dropdown::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+
+        .top-menu-item:hover .top-menu-dropdown {
+            display: block;
+        }
+        .top-menu-dropdown a {
+            color: #d0d0d0;
+            padding: 6px 12px;
+            text-decoration: none;
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+        }
+        .top-menu-dropdown a:hover {
+            background-color: #4b5155;
+            color: #fff;
+        }
+        .top-menu-dropdown a .shortcut {
+            color: #888;
+        }
+        .top-menu-dropdown a:hover .shortcut {
+            color: #ccc;
+        }
+        .menu-separator {
+            height: 1px;
+            background-color: #555;
+            margin: 4px 0;
+            flex-shrink: 0;
+        }
+
         #toolbar { 
             height: 40px; background-color: #3b4043; border-bottom: 1px solid #1a1c1d; 
             display: flex; align-items: center; padding: 0 10px; font-size: 14px; flex-shrink: 0;
@@ -64,22 +136,18 @@
 
         .spacer { flex-grow: 0; width: 10px; flex-shrink: 0; }
         
-        .dropdown { position: relative; display: inline-block; flex-shrink: 0; }
-        .dropdown-btn { background-color: #2a5a2a; border-color: #1e401e; }
-        .dropdown-content, .context-menu {
+        .context-menu {
             display: none; position: absolute;
             background-color: #2c3032; min-width: 140px; box-shadow: 0 8px 16px rgba(0,0,0,0.5);
             z-index: 2000; border: 1px solid #555; border-radius: 4px; overflow: hidden;
         }
-        .dropdown-content { right: 0; top: 100%; }
         
-        .dropdown-content a, .context-menu a {
+        .context-menu a {
             color: #d0d0d0; padding: 10px 14px; text-decoration: none; display: block; font-size: 12px;
             border-bottom: 1px solid #1a1c1d; cursor: pointer;
         }
-        .dropdown-content a:last-child, .context-menu a:last-child { border-bottom: none; }
-        .dropdown-content a:hover, .context-menu a:hover { background-color: #4b5155; color: #fff; }
-        .dropdown:hover .dropdown-content { display: block; }
+        .context-menu a:last-child { border-bottom: none; }
+        .context-menu a:hover { background-color: #4b5155; color: #fff; }
         
         .context-menu.show { display: block; }
         .context-menu a.danger { color: #ff6666; }
@@ -296,6 +364,24 @@
         .m-edit-btn svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
         @media (max-width: 768px), (pointer: coarse) {
+            /* モバイル向けトップメニュー拡大 */
+            #top-menu-bar {
+                height: 40px;
+                font-size: 14px;
+            }
+            .top-menu-label {
+                line-height: 40px;
+                padding: 0 16px;
+            }
+            .top-menu-dropdown {
+                top: 40px;
+                max-height: calc(100vh - 60px); /* さらに安全な高さ制限 */
+            }
+            .top-menu-dropdown a {
+                padding: 12px 16px;
+                font-size: 14px;
+            }
+
             #toolbar {
                 height: 50px; 
                 padding: 0 8px; 
@@ -326,6 +412,42 @@
 <body>
 
 <div id="app-container">
+    <div id="top-menu-bar">
+        <div class="top-menu-item">
+            <div class="top-menu-label">File</div>
+            <div class="top-menu-dropdown">
+                <a href="#" id="menu-load-midi">Load MIDI...</a>
+                <a href="#" id="menu-export-midi-links">Export MIDI (Include Links)</a>
+                <a href="#" id="menu-export-midi-standard">Export MIDI (Standard)</a>
+            </div>
+        </div>
+        <div class="top-menu-item">
+            <div class="top-menu-label">Edit</div>
+            <div class="top-menu-dropdown">
+                <a href="#" id="menu-edit-undo"><span>Undo</span><span class="shortcut">Ctrl+Z</span></a>
+                <a href="#" id="menu-edit-redo"><span>Redo</span><span class="shortcut">Ctrl+Shift+Z</span></a>
+                <div class="menu-separator"></div>
+                <a href="#" id="menu-edit-cut"><span>Cut</span><span class="shortcut">Ctrl+X</span></a>
+                <a href="#" id="menu-edit-copy"><span>Copy</span><span class="shortcut">Ctrl+C</span></a>
+                <a href="#" id="menu-edit-paste"><span>Paste</span><span class="shortcut">Ctrl+V</span></a>
+                <a href="#" id="menu-edit-delete"><span>Delete Selected</span><span class="shortcut">Del</span></a>
+                <div class="menu-separator"></div>
+                <a href="#" id="menu-edit-selectall"><span>Select All</span><span class="shortcut">Ctrl+A</span></a>
+                <div class="menu-separator"></div>
+                <a href="#" id="menu-edit-trans-up12"><span>Transpose +12</span><span class="shortcut">Ctrl+Up</span></a>
+                <a href="#" id="menu-edit-trans-down12"><span>Transpose -12</span><span class="shortcut">Ctrl+Down</span></a>
+                <a href="#" id="menu-edit-trans-up1"><span>Transpose +1</span><span class="shortcut">Shift+Up</span></a>
+                <a href="#" id="menu-edit-trans-down1"><span>Transpose -1</span><span class="shortcut">Shift+Down</span></a>
+            </div>
+        </div>
+        <div class="top-menu-item" id="menu-settings">
+            <div class="top-menu-label">Settings</div>
+        </div>
+        <div class="top-menu-item" id="menu-help">
+            <div class="top-menu-label">Help</div>
+        </div>
+    </div>
+
     <div id="toolbar">
         <div id="toolbar-scroll-area">
             <button class="tool-btn" id="btn-toggle-panel" title="Toggle Track Panel">
@@ -339,6 +461,12 @@
                 <button class="tool-btn" id="btn-play" title="Play/Stop (Space)">
                     <svg viewBox="0 0 24 24" fill="currentColor" id="icon-play"><path d="M8 5v14l11-7z"/></svg> <span id="label-play">Play</span>
                 </button>
+                <button class="tool-btn" id="btn-loop" title="Toggle Loop (L)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
+                </button>
+                <button class="tool-btn" id="btn-auto-scroll" title="Auto Scroll">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"></polyline><line x1="6" y1="12" x2="18" y2="12"></line></svg>
+                </button>
             </div>
 
             <div class="tool-btn-group">
@@ -351,16 +479,16 @@
             </div>
             
             <div class="tool-btn-group">
-                <button class="tool-btn active" id="btn-draw" title="Draw (P)">
+                <button class="tool-btn active" id="btn-draw" title="Draw (1)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path><path d="M2 2l7.586 7.586"></path><circle cx="11" cy="11" r="2"></circle></svg> Draw
                 </button>
-                <button class="tool-btn" id="btn-select" title="Select (E)">
+                <button class="tool-btn" id="btn-select" title="Select (2)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg> Select
                 </button>
-                <button class="tool-btn" id="btn-mute" title="Mute (T)">
+                <button class="tool-btn" id="btn-mute" title="Mute (3)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg> Mute
                 </button>
-                <button class="tool-btn" id="btn-delete" title="Delete (D)">
+                <button class="tool-btn" id="btn-delete" title="Delete (4)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H7L3 16C2.5 15.5 2.5 14.5 3 14L13 4C13.5 3.5 14.5 3.5 15 4L20 9C20.5 9.5 20.5 10.5 20 11L11 20H20V20Z"/><line x1="18" y1="13" x2="11" y2="20"/></svg> Delete
                 </button>
             </div>
@@ -407,16 +535,6 @@
 
         <div class="spacer"></div>
         
-        <div class="dropdown">
-            <button class="tool-btn dropdown-btn" title="File Menu">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg> File ▼
-            </button>
-            <div class="dropdown-content">
-                <a href="#" id="menu-load-midi">Load MIDI...</a>
-                <a href="#" id="menu-export-midi-links">Export MIDI (Include Links)</a>
-                <a href="#" id="menu-export-midi-standard">Export MIDI (Standard)</a>
-            </div>
-        </div>
         <input type="file" id="hidden-midi-input" accept=".mid,.midi" style="display: none;">
     </div>
     
@@ -432,6 +550,7 @@
             <div id="timeline-container">
                 <div id="timeline-corner"></div>
                 <canvas id="timeline-canvas"></canvas>
+                <div style="width: 14px; background-color: #3b4043; border-bottom: 1px solid #1a1c1d; border-left: 1px solid #111; flex-shrink: 0;"></div>
             </div>
             
             <div id="h-scroll-container">
@@ -439,6 +558,7 @@
                 <div id="h-scroll-track">
                     <input type="range" id="scroll-h" class="custom-scrollbar" min="0" max="2000" step="1" value="0">
                 </div>
+                <div style="width: 14px; background-color: #1e2122; border-bottom: 1px solid #111; border-left: 1px solid #111; flex-shrink: 0;"></div>
             </div>
 
             <div id="grid-layout">
