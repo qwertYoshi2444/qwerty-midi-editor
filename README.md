@@ -3,7 +3,7 @@
 ブラウザ上で動作する、ピアノロール型のシンプルなMIDIエディタです。  
 ノートの追加・移動・削除、複数トラックの管理、MIDIの読み込み・書き出しが行えます。
 
-モバイルでの動作も試験的に対応しています。
+モバイルでの動作にも対応しています。
 
 [QwertY MIDI Editor↗](https://qwertyoshi2444.github.io/qwerty-midi-editor/)
 
@@ -230,4 +230,4 @@ Mボタンでそのトラックをミュート、Sボタンでそのトラック
 [QwertY MIDI Editor ユーザーフィードバック↗](https://docs.google.com/forms/d/e/1FAIpQLSf5jvY_ChWeNv59_ouEh1MCEavZ0SpcVuvsCZ5SZCjKpooMMA/viewform?usp=header)
 
 
-※全てのリクエストにお応えできるとは限りません。また、更新が遅れる場合があります。
+※全てのリクエストを反映できるとは限りません。また、更新が遅れる場合があります。
